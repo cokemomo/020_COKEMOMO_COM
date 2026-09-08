@@ -80,6 +80,33 @@
           "alt": "jjjjjj"
         }
       ]
+    },
+    {
+      "id": "2026-04-28-0632-bcfa",
+      "date": "2026-04-28T06:32:00+02:00",
+      "text": "",
+      "images": [
+        {
+          "src": "/diary/media/2026/04/2026-04-28-0632-bcfa.jpg",
+          "srcset": [
+            {
+              "w": 800,
+              "src": "/diary/media/2026/04/2026-04-28-0632-bcfa-800.jpg"
+            },
+            {
+              "w": 1600,
+              "src": "/diary/media/2026/04/2026-04-28-0632-bcfa-1600.jpg"
+            },
+            {
+              "w": 2400,
+              "src": "/diary/media/2026/04/2026-04-28-0632-bcfa.jpg"
+            }
+          ],
+          "width": 1600,
+          "height": 2400,
+          "alt": "Manchester memories"
+        }
+      ]
     }
   ]
 }
