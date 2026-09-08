@@ -121,12 +121,10 @@
     /* --- flujo central --- */
     .diary-flow{ flex: 1 1 auto; max-width: var(--diary-col); margin: 0 auto; }
 
-    .d-month-sep{
-      border-top: var(--border); padding-top: 6px; margin: 56px 0 28px;
-      font-size: var(--footer-font-size); text-transform: lowercase; letter-spacing:.05em;
-      opacity: var(--footer-opacity);
-    }
-    .diary-flow > .d-month-sep:first-child{ margin-top: 0; }
+    /* El separador de mes ya no se ve — sigue en el DOM como ancla invisible
+       (altura 0) para que el índice lateral de meses pueda seguir saltando
+       ahí, pero sin romper el flujo de fotos con un rótulo. */
+    .d-month-sep{ height:0; margin:0; padding:0; overflow:hidden; border:none; }
 
     .d-entry{ margin: 0 0 48px; }
     .d-entry + .d-entry{ margin-top: 48px; }
@@ -141,10 +139,11 @@
     .d-frame img{ display:block; width:100%; height:auto; }
     .d-frame:focus-visible{ outline: 1px solid rgba(255,255,255,.4); outline-offset: 4px; }
 
-    /* Fecha primero, texto (si lo hay) debajo — jerarquía invertida a propósito. */
-    .d-meta{ margin-top: 14px; }
-    .d-date{ font-size: var(--footer-font-size); opacity: var(--footer-opacity); margin: 0; text-transform:lowercase; }
-    .d-text{ font-size: var(--ui-font-size); color: var(--text-main); opacity:.85; line-height:1.5; margin: 4px 0 0; }
+    /* Una sola línea: fecha numérica + separador + texto (si lo hay). */
+    .d-meta{ margin-top: 14px; font-size: var(--ui-font-size); line-height:1.5; }
+    .d-date{ opacity: var(--footer-opacity); }
+    .d-sep{ opacity: var(--footer-opacity); }
+    .d-text{ color: var(--text-main); opacity:.85; }
 
     .d-end{ text-align:center; font-size:var(--footer-font-size); opacity:var(--footer-opacity); padding: 40px 0 20px; border-top: var(--border); }
     .d-sentinel{ height:1px; }
@@ -255,7 +254,7 @@
            borrado — no editar a mano esta región, se perdería al siguiente
            publish. -->
       <!-- DIARY_STATIC_START -->
-      <p class="d-month-sep" data-month="2026-09">septiembre 2026</p>
+      <p class="d-month-sep" data-month="2026-09" aria-hidden="true"></p>
 
       <article class="d-entry" data-entry-id="2026-09-02-0000-4e7e" data-date="2026-09-02T00:00:00+02:00">
         <figure class="d-photo">
@@ -270,13 +269,10 @@
                  loading="eager" fetchpriority="high" decoding="async">
           </button>
         </figure>
-        <div class="d-meta">
-          <p class="d-date">2 de septiembre de 2026</p>
-          <p class="d-text">Un niño corre solo por la arena de una playa, proyectando una sombra larga al sol de la tarde.</p>
-        </div>
+        <p class="d-meta"><span class="d-date">2/9/2026</span><span class="d-sep"> | </span><span class="d-text">Un niño corre solo por la arena de una playa, proyectando una sombra larga al sol de la tarde.</span></p>
       </article>
 
-      <p class="d-month-sep" data-month="2026-08">agosto 2026</p>
+      <p class="d-month-sep" data-month="2026-08" aria-hidden="true"></p>
 
       <article class="d-entry" data-entry-id="2026-08-04-0000-1a26" data-date="2026-08-04T00:00:00+02:00">
         <figure class="d-photo">
@@ -291,13 +287,10 @@
                  loading="eager" fetchpriority="high" decoding="async">
           </button>
         </figure>
-        <div class="d-meta">
-          <p class="d-date">4 de agosto de 2026</p>
-          <p class="d-text">Un adulto y un niño caminan de la mano por una playa a contraluz, con acantilados al fondo y otras personas paseando junto a la orilla.</p>
-        </div>
+        <p class="d-meta"><span class="d-date">4/8/2026</span><span class="d-sep"> | </span><span class="d-text">Un adulto y un niño caminan de la mano por una playa a contraluz, con acantilados al fondo y otras personas paseando junto a la orilla.</span></p>
       </article>
 
-      <p class="d-month-sep" data-month="2026-04">abril 2026</p>
+      <p class="d-month-sep" data-month="2026-04" aria-hidden="true"></p>
 
       <article class="d-entry" data-entry-id="2026-04-28-0632-bcfa" data-date="2026-04-28T06:32:00+02:00">
         <figure class="d-photo">
@@ -312,31 +305,10 @@
                  loading="lazy" decoding="async">
           </button>
         </figure>
-        <div class="d-meta">
-          <p class="d-date">28 de abril de 2026</p>
-        </div>
+        <p class="d-meta"><span class="d-date">28/4/2026</span></p>
       </article>
 
-      <article class="d-entry" data-entry-id="2026-04-28-0630-1ba2" data-date="2026-04-28T06:30:00+02:00">
-        <figure class="d-photo">
-          <button class="d-frame" type="button" data-full="/diary/media/2026/04/2026-04-28-0630-1ba2.jpg" aria-label="Ampliar: jjjjjj">
-            <img src="/diary/media/2026/04/2026-04-28-0630-1ba2-1600.jpg"
-                 srcset="/diary/media/2026/04/2026-04-28-0630-1ba2-800.jpg 800w,
-                         /diary/media/2026/04/2026-04-28-0630-1ba2-1600.jpg 1600w,
-                         /diary/media/2026/04/2026-04-28-0630-1ba2.jpg 2400w"
-                 sizes="(max-width: 900px) 100vw, 720px"
-                 width="2400" height="1600"
-                 alt="jjjjjj"
-                 loading="lazy" decoding="async">
-          </button>
-        </figure>
-        <div class="d-meta">
-          <p class="d-date">28 de abril de 2026</p>
-          <p class="d-text">jjj</p>
-        </div>
-      </article>
-
-      <p class="d-month-sep" data-month="2025-05">mayo 2025</p>
+      <p class="d-month-sep" data-month="2025-05" aria-hidden="true"></p>
 
       <article class="d-entry" data-entry-id="2025-05-05-0000-10a7" data-date="2025-05-05T00:00:00+02:00">
         <figure class="d-photo">
@@ -351,10 +323,7 @@
                  loading="lazy" decoding="async">
           </button>
         </figure>
-        <div class="d-meta">
-          <p class="d-date">5 de mayo de 2025</p>
-          <p class="d-text">Tazones, Asturias.</p>
-        </div>
+        <p class="d-meta"><span class="d-date">5/5/2025</span><span class="d-sep"> | </span><span class="d-text">Tazones, Asturias.</span></p>
       </article>
       <!-- DIARY_STATIC_END -->
 
@@ -383,9 +352,9 @@
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const MONTH_FMT = new Intl.DateTimeFormat('es-ES', { month:'long' });
-  const DATE_FMT = d => `${d.getDate()} de ${MONTH_FMT.format(d)} de ${d.getFullYear()}`;
+  const DATE_FMT = d => `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`; // "5/5/2025"
   const monthKey = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-  const monthLabel = d => `${MONTH_FMT.format(d)} ${d.getFullYear()}`.toLowerCase();
+  const monthLabel = d => `${MONTH_FMT.format(d)} ${d.getFullYear()}`.toLowerCase(); // solo para el indice lateral
 
   // ids ya presentes en el HTML estático: no se vuelven a insertar.
   const renderedIds = new Set(
@@ -486,16 +455,19 @@
       art.appendChild(fig);
     });
 
-    // Fecha primero, texto (si lo hay) debajo.
-    const meta = document.createElement('div');
+    // Una sola línea: fecha | texto (si lo hay). Sin texto, solo la fecha.
+    const meta = document.createElement('p');
     meta.className = 'd-meta';
-    const date = document.createElement('p');
+    const date = document.createElement('span');
     date.className = 'd-date'; date.textContent = DATE_FMT(dateObj);
     meta.appendChild(date);
     if (entry.text) {
-      const p = document.createElement('p');
-      p.className = 'd-text'; p.textContent = entry.text;
-      meta.appendChild(p);
+      const sep = document.createElement('span');
+      sep.className = 'd-sep'; sep.textContent = ' | ';
+      const text = document.createElement('span');
+      text.className = 'd-text'; text.textContent = entry.text;
+      meta.appendChild(sep);
+      meta.appendChild(text);
     }
     art.appendChild(meta);
 
@@ -513,7 +485,7 @@
       if (!sep) {
         sep = document.createElement('p');
         sep.className = 'd-month-sep'; sep.dataset.month = key;
-        sep.textContent = monthLabel(dateObj);
+        sep.setAttribute('aria-hidden', 'true'); // solo ancla para el indice, sin rotulo visible
         flow.insertBefore(sep, sentinel);
       }
       const el = buildEntryEl(entry, dateObj);
