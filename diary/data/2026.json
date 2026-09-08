@@ -1,0 +1,85 @@
+{
+  "entries": [
+    {
+      "id": "2026-08-04-0000-1a26",
+      "date": "2026-08-04T00:00:00+02:00",
+      "text": "Un adulto y un niño caminan de la mano por una playa a contraluz, con acantilados al fondo y otras personas paseando junto a la orilla.",
+      "images": [
+        {
+          "src": "/diary/media/2026/08/2026-08-04-0000-1a26.jpg",
+          "srcset": [
+            {
+              "w": 800,
+              "src": "/diary/media/2026/08/2026-08-04-0000-1a26-800.jpg"
+            },
+            {
+              "w": 1600,
+              "src": "/diary/media/2026/08/2026-08-04-0000-1a26-1600.jpg"
+            },
+            {
+              "w": 2400,
+              "src": "/diary/media/2026/08/2026-08-04-0000-1a26.jpg"
+            }
+          ],
+          "width": 2400,
+          "height": 1600,
+          "alt": "Un adulto y un niño caminan de la mano por una playa a contraluz, con acantilados al fondo y otras personas paseando junto a la orilla."
+        }
+      ]
+    },
+    {
+      "id": "2026-09-02-0000-4e7e",
+      "date": "2026-09-02T00:00:00+02:00",
+      "text": "Un niño corre solo por la arena de una playa, proyectando una sombra larga al sol de la tarde.",
+      "images": [
+        {
+          "src": "/diary/media/2026/09/2026-09-02-0000-4e7e.jpg",
+          "srcset": [
+            {
+              "w": 800,
+              "src": "/diary/media/2026/09/2026-09-02-0000-4e7e-800.jpg"
+            },
+            {
+              "w": 1600,
+              "src": "/diary/media/2026/09/2026-09-02-0000-4e7e-1600.jpg"
+            },
+            {
+              "w": 2400,
+              "src": "/diary/media/2026/09/2026-09-02-0000-4e7e.jpg"
+            }
+          ],
+          "width": 1600,
+          "height": 2400,
+          "alt": "Un niño corre solo por la arena de una playa, proyectando una sombra larga al sol de la tarde."
+        }
+      ]
+    },
+    {
+      "id": "2026-04-28-0630-1ba2",
+      "date": "2026-04-28T06:30:00+02:00",
+      "text": "jjj",
+      "images": [
+        {
+          "src": "/diary/media/2026/04/2026-04-28-0630-1ba2.jpg",
+          "srcset": [
+            {
+              "w": 800,
+              "src": "/diary/media/2026/04/2026-04-28-0630-1ba2-800.jpg"
+            },
+            {
+              "w": 1600,
+              "src": "/diary/media/2026/04/2026-04-28-0630-1ba2-1600.jpg"
+            },
+            {
+              "w": 2400,
+              "src": "/diary/media/2026/04/2026-04-28-0630-1ba2.jpg"
+            }
+          ],
+          "width": 2400,
+          "height": 1600,
+          "alt": "jjjjjj"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-LR7251LPSF"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-LR7251LPSF');
+  </script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <title>coke momo — diary</title>
+  <meta name="description" content="A photographic diary by coke momo.">
+  <link rel="canonical" href="https://www.cokemomo.com/diary/">
+
+  <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png">
+  <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="theme-color" content="#121212">
+
+  <style>
+    /* Tokens duplicados de index.html — no hay hoja compartida en este sitio
+       (todo el CSS vive inline). Si cambian los tokens del sitio, cambiar
+       aquí también. Ver DESIGN_TOKENS.md. */
+    :root{
+      --bg: #121212;
+      --text-main: #e0e0e0;
+      --page-max: 1400px;
+      --page-pad: 32px;
+      --header-height: 120px;
+      --logo-width: 200px;
+      --gap: 32px;
+      --border: 1px solid rgba(255,255,255,0.1);
+      --ui-font-size: 13px;
+      --footer-font-size: 12px;
+      --footer-opacity: .5;
+
+      --diary-col: 720px;
+      --diary-sidebar: 160px;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{
+      margin:0; padding:0; background:var(--bg); color:var(--text-main);
+      -webkit-user-select: none; user-select: none;
+      overflow-x: hidden;
+    }
+    img{ -webkit-user-drag:none; user-drag:none; }
+    body{ font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif; }
+
+    /* ===== HEADER — calco exacto del de index.html ===== */
+    header{
+      position: fixed; top:0; left:0; width:100%; height:var(--header-height);
+      z-index:5000; background:transparent; display:flex; align-items:center;
+      transition: opacity 0.4s ease, visibility 0.4s ease;
+      opacity: 1; visibility: visible;
+    }
+    header.hidden{ opacity:0; visibility:hidden; pointer-events:none; }
+    header::before{
+      content:""; position:absolute; inset:0; z-index:-1;
+      background:#121212; backdrop-filter:blur(15px); -webkit-backdrop-filter:blur(15px);
+      -webkit-mask-image:linear-gradient(to bottom, black 80%, transparent 100%);
+      mask-image:linear-gradient(to bottom, black 80%, transparent 100%);
+    }
+    .header-inner{
+      width:100%; max-width:var(--page-max); margin:0 auto; padding:0 var(--page-pad);
+      display:flex; align-items:center; justify-content:space-between; height:100%;
+    }
+    .logo{ width:var(--logo-width); max-width:60vw; filter:invert(1) brightness(0.9); }
+    .menu{ position:relative; font-size:var(--ui-font-size); color:#fff; }
+    .menu button, .menu-link{
+      background:none; border:none; font:inherit; cursor:pointer; padding:6px 10px; color:#fff;
+      text-shadow:0 1px 4px rgba(0,0,0,0.5); opacity:.9; transition:opacity .3s; text-decoration:none; display:inline-block;
+    }
+    .menu button:hover, .menu-link:hover{ opacity:1; }
+    .menu-sep{ opacity:.5; }
+    .menu-list{
+      position:absolute; right:0; top:100%; margin-top:10px;
+      background:#1a1a1a; border:1px solid #333; border-radius:10px;
+      box-shadow:0 12px 30px rgba(0,0,0,.5); display:none; min-width:160px; overflow:hidden;
+    }
+    .menu.open .menu-list{ display:block; }
+    .menu-list a{
+      display:block; width:100%; text-align:left; padding:10px 14px; border:none;
+      background:none; cursor:pointer; font-size:13px; color:#bbb; text-decoration:none;
+    }
+    .menu-list a:hover{ background:rgba(255,255,255,.1); color:#fff; }
+
+    /* ===== DIARY ===== */
+    main{
+      max-width: var(--page-max); margin: 0 auto; padding: var(--page-pad);
+      margin-top: var(--header-height);
+      min-height: calc(100vh - var(--header-height));
+    }
+
+    .diary-main{ display:flex; align-items:flex-start; gap: var(--gap); }
+
+    /* --- índice de meses (sticky) --- */
+    .diary-index{
+      flex: 0 0 var(--diary-sidebar); position: sticky; top: calc(var(--header-height) + var(--page-pad));
+      max-height: calc(100vh - var(--header-height) - var(--page-pad)*2);
+      overflow-y: auto; padding-right: 8px;
+    }
+    .d-idx-year{
+      background:none; border:none; color:var(--text-main); font: inherit;
+      font-size: var(--ui-font-size); font-weight: 500; letter-spacing:.02em;
+      opacity:.85; cursor:pointer; padding: 10px 0 6px; display:block; width:100%; text-align:left;
+    }
+    .d-idx-months{ display:flex; flex-direction:column; }
+    .d-idx-months[data-collapsed="true"]{ display:none; }
+    .d-idx-month{
+      background:none; border:none; color:var(--text-main); font: inherit;
+      font-size: var(--ui-font-size); text-transform: lowercase; letter-spacing:.01em;
+      opacity:.55; cursor:pointer; padding:5px 0 5px 4px; text-align:left; transition:opacity .2s ease;
+    }
+    .d-idx-month:hover{ opacity:.85; }
+    .d-idx-month[aria-current="true"]{ opacity:1; }
+
+    /* --- flujo central --- */
+    .diary-flow{ flex: 1 1 auto; max-width: var(--diary-col); margin: 0 auto; }
+
+    .d-month-sep{
+      border-top: var(--border); padding-top: 6px; margin: 56px 0 28px;
+      font-size: var(--footer-font-size); text-transform: lowercase; letter-spacing:.05em;
+      opacity: var(--footer-opacity);
+    }
+    .diary-flow > .d-month-sep:first-child{ margin-top: 0; }
+
+    .d-entry{ margin: 0 0 48px; }
+    .d-entry + .d-entry{ margin-top: 48px; }
+    .d-photo + .d-photo{ margin-top: 10px; }
+
+    /* Objeto delicado: sin marco, sin sombra, sin radio — a proposito distinto
+       del resto del sitio (que sí usa --radius y --shadow en sus tiles). */
+    .d-frame{
+      display:block; width:100%; padding:0; margin:0; border:none; background:none;
+      cursor: none; position: relative;
+    }
+    .d-frame img{ display:block; width:100%; height:auto; }
+    .d-frame:focus-visible{ outline: 1px solid rgba(255,255,255,.4); outline-offset: 4px; }
+
+    /* Fecha primero, texto (si lo hay) debajo — jerarquía invertida a propósito. */
+    .d-meta{ margin-top: 14px; }
+    .d-date{ font-size: var(--footer-font-size); opacity: var(--footer-opacity); margin: 0; text-transform:lowercase; }
+    .d-text{ font-size: var(--ui-font-size); color: var(--text-main); opacity:.85; line-height:1.5; margin: 4px 0 0; }
+
+    .d-end{ text-align:center; font-size:var(--footer-font-size); opacity:var(--footer-opacity); padding: 40px 0 20px; border-top: var(--border); }
+    .d-sentinel{ height:1px; }
+
+    /* --- índice compacto en móvil --- */
+    .diary-idx-mobile{ display:none; }
+
+    @media (max-width: 900px){
+      .diary-main{ flex-direction: column; }
+      .diary-index{ display:none; }
+      .diary-idx-mobile{
+        display:flex; gap:16px; overflow-x:auto; -webkit-overflow-scrolling:touch;
+        position: sticky; top: var(--header-height); z-index: 10;
+        background: var(--bg); padding: 12px 0; margin-bottom: 12px; border-bottom: var(--border);
+      }
+      .diary-idx-mobile button{
+        flex:0 0 auto; background:none; border:none; color:var(--text-main); font:inherit;
+        font-size: var(--ui-font-size); text-transform:lowercase; opacity:.55; white-space:nowrap; padding:2px 0;
+      }
+      .diary-idx-mobile button[aria-current="true"]{ opacity:1; }
+      .diary-flow{ max-width: none; }
+    }
+
+    @media (max-width: 600px){
+      :root{ --page-pad:18px; --logo-width:160px; --header-height:80px; }
+    }
+
+    /* ===== VISOR — mismo mecanismo que el lightbox de Stories (calco) ===== */
+    .cursor-msg{
+        position: fixed; top: 0; left: 0; pointer-events: none; z-index: 7000;
+        padding: 6px 10px;
+        background: rgba(255, 255, 255, 0.9); color: #000;
+        font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em;
+        border-radius: 4px; opacity: 0;
+        transform: translate(15px, 15px);
+        transition: opacity 0.2s ease, transform 0.1s ease;
+        white-space: nowrap;
+    }
+    .cursor-msg.visible{ opacity: 1; }
+
+    .lightbox{
+      position: fixed; top:0; left:0; width:100%; height:100%; display:none; z-index:6000;
+      background: rgba(18,18,18,0.85);
+      backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
+      align-items:center; justify-content:center; touch-action:none; overflow:hidden; cursor:none;
+    }
+    .lightbox.open{ display:flex; }
+    .lightbox-inner{ width:100%; height:100%; position:relative; overflow:hidden; }
+    .lb-stage{ width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+    .lightbox-img{
+      max-width:100%; max-height:100%; object-fit:contain;
+      transform-origin:center center; pointer-events:none; transition:none;
+    }
+    .lb-protection{ position:absolute; inset:0; z-index:4050; cursor:none; }
+
+    @media (max-width: 600px){ .cursor-msg{ display:none; } }
+
+    @media (max-width: 900px){
+      .lightbox{ display:none; }
+      .lightbox.open{
+        display:block; overflow:auto; -webkit-overflow-scrolling:touch; touch-action:auto; padding:0;
+      }
+      .lightbox-inner{ height:auto; min-height:100%; overflow:visible; display:flex; align-items:flex-start; justify-content:flex-start; }
+      .lb-stage{ display:block; width:auto; height:auto; padding:0; }
+      .lightbox-img{
+        width:300vw !important; max-width:none !important; height:auto !important; max-height:none !important;
+        transform:none !important; margin:0; display:block; pointer-events:auto; cursor:zoom-out;
+      }
+      .lb-protection{ display:none !important; }
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="cursor-msg" id="cursorMsg">CLICK TO ZOOM</div>
+
+<header>
+  <div class="header-inner">
+    <a href="/"><img src="/assets/img/logo.png" class="logo" alt="coke momo"></a>
+    <div class="menu" id="menu">
+      <button id="menuToggle">STORIES</button><span class="menu-sep" aria-hidden="true">/</span><a href="/diary/" class="menu-link">DIARY</a>
+      <div class="menu-list">
+        <a href="/">HOME</a>
+        <a href="/#psilicon-flesh">PSILICON FLESH</a>
+        <a href="/#held-in-time">HELD IN TIME</a>
+        <a href="/#path">PATH</a>
+        <a href="/#strings">STRINGS</a>
+        <a href="/#portraiture">PORTRAITURE</a>
+        <a href="/#core">CORE</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="diary-idx-mobile" id="diaryIdxMobile" aria-label="Índice de meses"></div>
+
+  <div class="diary-main">
+    <aside class="diary-index" id="diaryIndex" aria-label="Índice de meses"></aside>
+
+    <div class="diary-flow" id="diaryFlow">
+
+      <!-- Primer tramo pre-renderizado: visible sin JavaScript y sin esperar
+           al fetch. El JS reconoce estos [data-entry-id] al cargar el JSON
+           del año y no los duplica. El subidor local regenera TODO lo que
+           hay entre las dos marcas de abajo en cada publicación/edición/
+           borrado — no editar a mano esta región, se perdería al siguiente
+           publish. -->
+      <!-- DIARY_STATIC_START -->
+      <p class="d-month-sep" data-month="2026-09">septiembre 2026</p>
+
+      <article class="d-entry" data-entry-id="2026-09-02-0000-4e7e" data-date="2026-09-02T00:00:00+02:00">
+        <figure class="d-photo">
+          <button class="d-frame" type="button" data-full="/diary/media/2026/09/2026-09-02-0000-4e7e.jpg" aria-label="Ampliar: Un niño corre solo por la arena de una playa, proyectando una sombra larga al sol de la tarde.">
+            <img src="/diary/media/2026/09/2026-09-02-0000-4e7e-1600.jpg"
+                 srcset="/diary/media/2026/09/2026-09-02-0000-4e7e-800.jpg 800w,
+                         /diary/media/2026/09/2026-09-02-0000-4e7e-1600.jpg 1600w,
+                         /diary/media/2026/09/2026-09-02-0000-4e7e.jpg 2400w"
+                 sizes="(max-width: 900px) 100vw, 720px"
+                 width="1600" height="2400"
+                 alt="Un niño corre solo por la arena de una playa, proyectando una sombra larga al sol de la tarde."
+                 loading="eager" fetchpriority="high" decoding="async">
+          </button>
+        </figure>
+        <div class="d-meta">
+          <p class="d-date">2 de septiembre de 2026</p>
+          <p class="d-text">Un niño corre solo por la arena de una playa, proyectando una sombra larga al sol de la tarde.</p>
+        </div>
+      </article>
+
+      <p class="d-month-sep" data-month="2026-08">agosto 2026</p>
+
+      <article class="d-entry" data-entry-id="2026-08-04-0000-1a26" data-date="2026-08-04T00:00:00+02:00">
+        <figure class="d-photo">
+          <button class="d-frame" type="button" data-full="/diary/media/2026/08/2026-08-04-0000-1a26.jpg" aria-label="Ampliar: Un adulto y un niño caminan de la mano por una playa a contraluz, con acantilados al fondo y otras personas paseando junto a la orilla.">
+            <img src="/diary/media/2026/08/2026-08-04-0000-1a26-1600.jpg"
+                 srcset="/diary/media/2026/08/2026-08-04-0000-1a26-800.jpg 800w,
+                         /diary/media/2026/08/2026-08-04-0000-1a26-1600.jpg 1600w,
+                         /diary/media/2026/08/2026-08-04-0000-1a26.jpg 2400w"
+                 sizes="(max-width: 900px) 100vw, 720px"
+                 width="2400" height="1600"
+                 alt="Un adulto y un niño caminan de la mano por una playa a contraluz, con acantilados al fondo y otras personas paseando junto a la orilla."
+                 loading="eager" fetchpriority="high" decoding="async">
+          </button>
+        </figure>
+        <div class="d-meta">
+          <p class="d-date">4 de agosto de 2026</p>
+          <p class="d-text">Un adulto y un niño caminan de la mano por una playa a contraluz, con acantilados al fondo y otras personas paseando junto a la orilla.</p>
+        </div>
+      </article>
+
+      <p class="d-month-sep" data-month="2026-04">abril 2026</p>
+
+      <article class="d-entry" data-entry-id="2026-04-28-0630-1ba2" data-date="2026-04-28T06:30:00+02:00">
+        <figure class="d-photo">
+          <button class="d-frame" type="button" data-full="/diary/media/2026/04/2026-04-28-0630-1ba2.jpg" aria-label="Ampliar: jjjjjj">
+            <img src="/diary/media/2026/04/2026-04-28-0630-1ba2-1600.jpg"
+                 srcset="/diary/media/2026/04/2026-04-28-0630-1ba2-800.jpg 800w,
+                         /diary/media/2026/04/2026-04-28-0630-1ba2-1600.jpg 1600w,
+                         /diary/media/2026/04/2026-04-28-0630-1ba2.jpg 2400w"
+                 sizes="(max-width: 900px) 100vw, 720px"
+                 width="2400" height="1600"
+                 alt="jjjjjj"
+                 loading="lazy" decoding="async">
+          </button>
+        </figure>
+        <div class="d-meta">
+          <p class="d-date">28 de abril de 2026</p>
+          <p class="d-text">jjj</p>
+        </div>
+      </article>
+      <!-- DIARY_STATIC_END -->
+
+      <div class="d-sentinel" id="diarySentinel"></div>
+    </div>
+  </div>
+</main>
+
+<div class="lightbox" id="lightbox" aria-hidden="true">
+  <div class="lightbox-inner">
+    <div class="lb-stage">
+      <div class="lb-protection" id="lbProtection"></div>
+      <img class="lightbox-img" id="lbImg" alt="">
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const flow = document.getElementById('diaryFlow');
+  const sentinel = document.getElementById('diarySentinel');
+  const idxDesktop = document.getElementById('diaryIndex');
+  const idxMobile = document.getElementById('diaryIdxMobile');
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const MONTH_FMT = new Intl.DateTimeFormat('es-ES', { month:'long' });
+  const DATE_FMT = d => `${d.getDate()} de ${MONTH_FMT.format(d)} de ${d.getFullYear()}`;
+  const monthKey = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  const monthLabel = d => `${MONTH_FMT.format(d)} ${d.getFullYear()}`.toLowerCase();
+
+  // ids ya presentes en el HTML estático: no se vuelven a insertar.
+  const renderedIds = new Set(
+    [...flow.querySelectorAll('[data-entry-id]')].map(el => el.dataset.entryId)
+  );
+
+  // meses ya construidos en el índice, para no duplicar cabeceras
+  const monthsSeen = new Set([...flow.querySelectorAll('.d-month-sep')].map(el => el.dataset.month));
+  // "monthsSeen" solo sirve para saber con qué meses sembrar el índice al
+  // arrancar (los que ya vienen en el HTML estático). La guarda de "¿ya está
+  // este año/mes en el índice lateral?" se hace contra el DOM (ver
+  // ensureYearInIndex / ensureMonthInIndex), no contra este Set — reusarlo
+  // como las dos cosas a la vez fue el bug que dejaba el índice vacío.
+
+  let years = [2026];      // se sustituye por el manifest real
+  let yearPtr = -1;        // indice del ultimo año YA cargado
+  let ended = false;
+  let loading = false;
+
+  async function fetchJSON(url){
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) throw new Error(url + ' -> ' + r.status);
+    return r.json();
+  }
+
+  function ensureYearInIndex(year){
+    if (idxDesktop.querySelector(`.d-idx-months[data-year="${year}"]`)) return;
+    // año en curso (el primero que se añade, siempre el más nuevo por el
+    // orden de renderizado) abierto; el resto plegado si hay más de uno.
+    const isFirstYear = idxDesktop.querySelectorAll('.d-idx-year').length === 0;
+    const yearBtn = document.createElement('button');
+    yearBtn.className = 'd-idx-year';
+    yearBtn.type = 'button';
+    yearBtn.textContent = year;
+    const monthsWrap = document.createElement('div');
+    monthsWrap.className = 'd-idx-months';
+    monthsWrap.dataset.year = year;
+    if (!isFirstYear) monthsWrap.dataset.collapsed = 'true';
+    yearBtn.addEventListener('click', () => {
+      const collapsed = monthsWrap.dataset.collapsed === 'true';
+      monthsWrap.dataset.collapsed = collapsed ? 'false' : 'true';
+    });
+    idxDesktop.appendChild(yearBtn);
+    idxDesktop.appendChild(monthsWrap);
+  }
+
+  function ensureMonthInIndex(dateObj){
+    const key = monthKey(dateObj);
+    if (idxDesktop.querySelector(`.d-idx-month[data-key="${key}"]`)) return;
+    ensureYearInIndex(dateObj.getFullYear());
+    const monthsWrap = idxDesktop.querySelector(`.d-idx-months[data-year="${dateObj.getFullYear()}"]`);
+    const label = MONTH_FMT.format(dateObj).toLowerCase();
+
+    const btn = document.createElement('button');
+    btn.className = 'd-idx-month'; btn.type = 'button'; btn.dataset.key = key;
+    btn.textContent = label;
+    btn.addEventListener('click', () => jumpToMonth(key));
+    monthsWrap.appendChild(btn);
+
+    const mBtn = document.createElement('button');
+    mBtn.type = 'button'; mBtn.dataset.key = key; mBtn.textContent = monthLabel(dateObj);
+    mBtn.addEventListener('click', () => jumpToMonth(key));
+    idxMobile.appendChild(mBtn);
+  }
+
+  function jumpToMonth(key){
+    const sep = flow.querySelector(`.d-month-sep[data-month="${key}"]`);
+    if (!sep) return;
+    sep.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    history.replaceState(null, '', '#' + key);
+  }
+
+  function buildEntryEl(entry, dateObj){
+    const art = document.createElement('article');
+    art.className = 'd-entry';
+    art.dataset.entryId = entry.id;
+    art.dataset.date = entry.date;
+
+    entry.images.forEach(img => {
+      const fig = document.createElement('figure');
+      fig.className = 'd-photo';
+      const btn = document.createElement('button');
+      btn.className = 'd-frame'; btn.type = 'button';
+      btn.setAttribute('aria-label', 'Ampliar: ' + img.alt);
+      btn.dataset.full = (img.srcset.find(s => s.w === 2400) || {src: img.src}).src;
+
+      const el = document.createElement('img');
+      el.loading = 'lazy'; el.decoding = 'async';
+      el.width = img.width; el.height = img.height; el.alt = img.alt;
+      const bySize = [...img.srcset].sort((a,b) => a.w - b.w);
+      el.src = (bySize.find(s => s.w === 1600) || bySize[bySize.length-1]).src;
+      el.srcset = bySize.map(s => `${s.src} ${s.w}w`).join(', ');
+      el.sizes = '(max-width: 900px) 100vw, 720px';
+
+      btn.appendChild(el);
+      bindFrame(btn);
+      fig.appendChild(btn);
+      art.appendChild(fig);
+    });
+
+    // Fecha primero, texto (si lo hay) debajo.
+    const meta = document.createElement('div');
+    meta.className = 'd-meta';
+    const date = document.createElement('p');
+    date.className = 'd-date'; date.textContent = DATE_FMT(dateObj);
+    meta.appendChild(date);
+    if (entry.text) {
+      const p = document.createElement('p');
+      p.className = 'd-text'; p.textContent = entry.text;
+      meta.appendChild(p);
+    }
+    art.appendChild(meta);
+
+    return art;
+  }
+
+  function renderYear(data){
+    const entries = [...data.entries].sort((a,b) => new Date(b.date) - new Date(a.date));
+    entries.forEach(entry => {
+      const dateObj = new Date(entry.date);
+      ensureMonthInIndex(dateObj);
+      if (renderedIds.has(entry.id)) return; // ya está en el HTML estático
+      const key = monthKey(dateObj);
+      let sep = flow.querySelector(`.d-month-sep[data-month="${key}"]`);
+      if (!sep) {
+        sep = document.createElement('p');
+        sep.className = 'd-month-sep'; sep.dataset.month = key;
+        sep.textContent = monthLabel(dateObj);
+        flow.insertBefore(sep, sentinel);
+      }
+      const el = buildEntryEl(entry, dateObj);
+      // insertar tras su separador de mes (o al final del bloque de ese mes)
+      let ref = sep.nextSibling;
+      while (ref && ref !== sentinel && !(ref.nodeType === 1 && ref.classList.contains('d-month-sep'))) ref = ref.nextSibling;
+      flow.insertBefore(el, ref);
+      renderedIds.add(entry.id);
+      monthObserver.observe(sep);
+    });
+  }
+
+  async function loadNextYear(){
+    if (loading || ended) return;
+    loading = true;
+    const nextIdx = yearPtr + 1;
+    if (nextIdx >= years.length) {
+      ended = true;
+      const end = document.createElement('p');
+      end.className = 'd-end'; end.textContent = 'principio del diario';
+      flow.insertBefore(end, sentinel);
+      loading = false;
+      return;
+    }
+    try {
+      const data = await fetchJSON(`/diary/data/${years[nextIdx]}.json`);
+      renderYear(data);
+      yearPtr = nextIdx;
+    } catch(e) { /* si un año falla, no se reintenta en bucle */ ended = true; }
+    loading = false;
+  }
+
+  async function loadUntilYear(targetYear){
+    while (!ended && (yearPtr < 0 || years[yearPtr] > targetYear)) {
+      await loadNextYear();
+      if (years[yearPtr] === targetYear || ended) break;
+    }
+  }
+
+  // --- observers ---
+  const monthObserver = new IntersectionObserver((rows) => {
+    rows.forEach(r => {
+      const key = r.target.dataset.month;
+      const btn = idxDesktop.querySelector(`.d-idx-month[data-key="${key}"]`);
+      const mBtn = idxMobile.querySelector(`button[data-key="${key}"]`);
+      if (r.isIntersecting) {
+        idxDesktop.querySelectorAll('[aria-current]').forEach(b => b.removeAttribute('aria-current'));
+        idxMobile.querySelectorAll('[aria-current]').forEach(b => b.removeAttribute('aria-current'));
+        if (btn) btn.setAttribute('aria-current','true');
+        if (mBtn) mBtn.setAttribute('aria-current','true');
+        history.replaceState(null, '', '#' + key);
+      }
+    });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+
+  const sentinelObserver = new IntersectionObserver((rows) => {
+    if (rows[0].isIntersecting) loadNextYear();
+  }, { rootMargin: '400px' });
+  sentinelObserver.observe(sentinel);
+
+  // --- visor: mismo mecanismo que el lightbox de Stories (calco literal) ---
+  const ZOOM_SCALE_DESKTOP = 4;
+  const header = document.querySelector('header');
+  const lightbox = document.getElementById('lightbox');
+  const lbImg = document.getElementById('lbImg');
+  const lbProtection = document.getElementById('lbProtection');
+  const cursorMsg = document.getElementById('cursorMsg');
+
+  document.addEventListener('mousemove', (e) => {
+    cursorMsg.style.left = e.clientX + 'px';
+    cursorMsg.style.top = e.clientY + 'px';
+  });
+  function showCursorMsg(text){
+    if (window.innerWidth > 900) { cursorMsg.textContent = text; cursorMsg.classList.add('visible'); }
+  }
+  function hideCursorMsg(){ cursorMsg.classList.remove('visible'); }
+
+  function updatePan(mouseX, mouseY){
+    if (window.innerWidth <= 900) return;
+    if (!lbImg.naturalWidth) return;
+    const viewportW = window.innerWidth, viewportH = window.innerHeight;
+    const imgRatio = lbImg.naturalWidth / lbImg.naturalHeight;
+    const screenRatio = viewportW / viewportH;
+    let renderW, renderH;
+    if (imgRatio > screenRatio) { renderW = viewportW; renderH = viewportW / imgRatio; }
+    else { renderH = viewportH; renderW = viewportH * imgRatio; }
+    const overflowX = Math.max(0, renderW * ZOOM_SCALE_DESKTOP - viewportW);
+    const overflowY = Math.max(0, renderH * ZOOM_SCALE_DESKTOP - viewportH);
+    const xPerc = mouseX / viewportW;
+    const yPerc = Math.max(0, Math.min(1, mouseY / viewportH));
+    const moveX = (0.5 - xPerc) * overflowX, moveY = (0.5 - yPerc) * overflowY;
+    lbImg.style.transform = `translate(${moveX}px, ${moveY}px) scale(${ZOOM_SCALE_DESKTOP})`;
+  }
+
+  function openLightbox(src, alt){
+    lbImg.src = src; lbImg.alt = alt;
+    lightbox.classList.add('open');
+    lightbox.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    header.classList.add('hidden');
+    if (window.innerWidth > 900) {
+      requestAnimationFrame(() => updatePan(window.innerWidth / 2, window.innerHeight / 2));
+    } else {
+      setTimeout(() => {
+        lightbox.scrollLeft = (lightbox.scrollWidth - window.innerWidth) / 2;
+        lightbox.scrollTop = (lightbox.scrollHeight - window.innerHeight) / 2;
+      }, 10);
+    }
+  }
+
+  function closeLightbox(){
+    lightbox.classList.remove('open');
+    lightbox.setAttribute('aria-hidden', 'true');
+    lbImg.src = '';
+    document.body.style.overflow = '';
+    hideCursorMsg();
+    header.classList.remove('hidden');
+  }
+
+  lbProtection.addEventListener('mouseenter', () => showCursorMsg('CLICK TO ZOOM OUT'));
+  lbProtection.addEventListener('mouseleave', hideCursorMsg);
+  lbProtection.addEventListener('mousemove', (e) => { requestAnimationFrame(() => updatePan(e.clientX, e.clientY)); });
+  lbProtection.addEventListener('click', closeLightbox);
+  lbImg.addEventListener('click', closeLightbox);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeLightbox(); });
+
+  // cada foto (estática o cargada por fetch) usa esto: mismo aviso al pasar
+  // el cursor, mismo click para ampliar que en las stories.
+  function bindFrame(btn){
+    btn.addEventListener('mouseenter', () => showCursorMsg('CLICK TO ZOOM'));
+    btn.addEventListener('mouseleave', hideCursorMsg);
+    btn.addEventListener('click', () => {
+      hideCursorMsg();
+      openLightbox(btn.dataset.full, btn.querySelector('img').alt);
+    });
+  }
+  document.querySelectorAll('.d-frame').forEach(bindFrame);
+
+  // --- menú (calco del de index.html) ---
+  const menu = document.getElementById('menu');
+  document.getElementById('menuToggle').addEventListener('click', () => menu.classList.toggle('open'));
+  document.addEventListener('click', (e) => { if (!menu.contains(e.target)) menu.classList.remove('open'); });
+
+  // --- arranque ---
+  (async function init(){
+    // observar los separadores ya presentes en el HTML estático
+    flow.querySelectorAll('.d-month-sep').forEach(el => monthObserver.observe(el));
+    flow.querySelectorAll('.d-entry').forEach(el => {
+      const key = monthKey(new Date(el.dataset.date));
+      // el índice también necesita entradas para los meses ya estáticos
+    });
+    [...monthsSeen].forEach(key => {
+      const [y, m] = key.split('-').map(Number);
+      ensureMonthInIndex(new Date(y, m - 1, 1));
+    });
+
+    try {
+      const manifest = await fetchJSON('/diary/data/years.json');
+      years = [...manifest.years].sort((a,b) => b - a);
+    } catch(e) { /* se queda con el valor por defecto */ }
+
+    const hash = location.hash.replace('#','');
+    const targetYear = /^\d{4}-\d{2}$/.test(hash) ? parseInt(hash.slice(0,4), 10) : years[0];
+
+    await loadUntilYear(targetYear);
+    // asegurar que el año más nuevo también está cargado (para que el
+    // scroll continuo hacia arriba tenga sentido si se entra por un mes viejo)
+    if (yearPtr < 0) await loadNextYear();
+
+    if (hash) {
+      requestAnimationFrame(() => {
+        const sep = flow.querySelector(`.d-month-sep[data-month="${hash}"]`);
+        if (sep) sep.scrollIntoView({ behavior:'auto', block:'start' });
+      });
+    }
+  })();
+})();
+</script>
+
+</body>
+</html>
