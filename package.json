@@ -1,0 +1,12 @@
+{
+  "name": "cokemomo-diary-tools",
+  "private": true,
+  "description": "Herramientas locales para el diario de cokemomo.com. No se publica nada de esto en la web.",
+  "scripts": {
+    "diary": "node tools/diary-uploader/server.js",
+    "diary:check": "node tools/diary-uploader/check.js"
+  },
+  "dependencies": {
+    "sharp": "^0.35.4"
+  }
+}

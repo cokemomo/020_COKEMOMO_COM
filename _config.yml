@@ -1,0 +1,10 @@
+# GitHub Pages construye este sitio con Jekyll (build legacy) directo desde
+# main. Lo de aquí abajo no debe salir en la web publica: es la herramienta
+# local del diario (Fase 2), nunca se sirve ni se enlaza.
+exclude:
+  - package.json
+  - package-lock.json
+  - node_modules
+  - tools
+  - Diary.command
+  - DESIGN_TOKENS.md

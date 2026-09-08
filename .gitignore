@@ -15,3 +15,9 @@ La Familia Revuelta.html
 
 # Config local del servidor de previsualizacion
 .claude/
+
+# Subidor local del diario (node_modules nunca se versiona)
+node_modules/
+tools/diary-uploader/tmp/
+# Originales sin recortar, solo para poder reencuadrar mas tarde — nunca al repo.
+tools/diary-uploader/originals/

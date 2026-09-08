@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>diary — subidor local</title>
+<style>
+  :root{ --bg:#121212; --fg:#e0e0e0; --muted:#888; --line:rgba(255,255,255,.12); }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; background:var(--bg); color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif; }
+  body{ padding:32px; max-width:720px; margin:0 auto 120px; }
+  h1{ font-size:15px; font-weight:500; letter-spacing:.02em; margin:0 0 24px; }
+  h2{ font-size:12px; font-weight:500; text-transform:uppercase; letter-spacing:.05em; opacity:.6; margin:40px 0 12px; }
+  label{ display:block; font-size:12px; opacity:.6; margin-bottom:6px; }
+  input[type=text], input[type=date], textarea{
+    width:100%; background:#1a1a1a; border:1px solid var(--line); color:var(--fg);
+    font:inherit; font-size:13px; padding:8px 10px; border-radius:0;
+  }
+  input[type=date]{ width:auto; max-width:160px; font-size:12px; padding:6px 8px; }
+  textarea{ resize:vertical; min-height:60px; }
+  input:focus, textarea:focus{ outline:1px solid rgba(255,255,255,.35); }
+  .hint{ font-size:11px; opacity:.5; margin-top:4px; }
+  .field{ margin-bottom:18px; }
+  .counter{ font-size:11px; opacity:.5; text-align:right; }
+
+  #drop{ border:1px dashed var(--line); padding:32px; text-align:center; font-size:13px; opacity:.7; cursor:pointer; }
+  #drop.over{ opacity:1; border-color:rgba(255,255,255,.4); }
+  #fileInput{ display:none; }
+
+  .thumbs{ display:flex; flex-wrap:wrap; gap:12px; margin-top:16px; }
+  .thumb{ width:140px; border:1px solid var(--line); padding:8px; cursor:grab; background:#161616; }
+  .thumb.dragging{ opacity:.4; }
+  .thumb.unframed{ border-color:rgba(224,150,90,.5); }
+  .thumb .thumbImgWrap{ width:100%; aspect-ratio:3/2; background:#0a0a0a; margin-bottom:8px; overflow:hidden;
+    display:flex; align-items:center; justify-content:center; }
+  .thumb.orient-v .thumbImgWrap{ aspect-ratio:2/3; }
+  .thumb .thumbImgWrap img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .thumb .thumbImgWrap.raw img{ width:100%; height:auto; object-fit:contain; }
+  .thumb .badge{ font-size:10px; text-transform:uppercase; letter-spacing:.05em; opacity:.5; margin-bottom:6px; }
+  .thumb .badge.pending{ color:#e0965a; opacity:1; }
+  .thumb .thumbActions{ display:flex; justify-content:space-between; margin-top:6px; }
+  .thumb .frameBtn, .thumb .rm{ font-size:11px; opacity:.7; background:none; border:none; color:inherit; cursor:pointer; padding:4px 0 0; }
+  .thumb .frameBtn:hover, .thumb .rm:hover{ opacity:1; }
+
+  /* --- gestor de encuadre --- */
+  .cropPanel{ border:1px solid var(--line); padding:20px; margin-top:16px; background:#161616; }
+  .cropPanel .orientRow{ display:flex; gap:8px; margin-bottom:16px; }
+  .cropPanel .orientBtn{ flex:1; background:none; border:1px solid var(--line); color:var(--fg); font:inherit;
+    font-size:12px; padding:8px; cursor:pointer; }
+  .cropPanel .orientBtn.active{ border-color:#fff; opacity:1; }
+  .cropPanel .orientBtn:not(.active){ opacity:.6; }
+  .cropStage{ width:100%; max-width:420px; margin:0 auto; aspect-ratio:3/2; position:relative; overflow:hidden;
+    background:#000; cursor:grab; touch-action:none; }
+  .cropStage.orient-v{ aspect-ratio:2/3; }
+  .cropStage.grabbing{ cursor:grabbing; }
+  .cropStage img{ position:absolute; top:0; left:0; transform-origin:0 0; -webkit-user-select:none; user-select:none;
+    pointer-events:none; max-width:none; }
+  .cropZoomRow{ display:flex; align-items:center; gap:10px; margin-top:14px; max-width:420px; margin-left:auto; margin-right:auto; }
+  .cropZoomRow input[type=range]{ flex:1; }
+  .cropPanel .cropActions{ display:flex; gap:8px; margin-top:16px; justify-content:center; }
+
+  button.primary{
+    background:#fff; color:#121212; border:none; font:inherit; font-size:13px; font-weight:500;
+    padding:10px 18px; cursor:pointer; letter-spacing:.02em;
+  }
+  button.primary:disabled{ opacity:.35; cursor:default; }
+  button.plain{ background:none; border:1px solid var(--line); color:var(--fg); font:inherit; font-size:12px; padding:7px 12px; cursor:pointer; }
+  button.plain:hover{ border-color:rgba(255,255,255,.4); }
+
+  #status{ font-size:12px; opacity:.75; margin-top:14px; min-height:1.4em; }
+  #status.err{ color:#e07a7a; opacity:1; }
+  #status.ok{ color:#8fd3a6; opacity:1; }
+
+  .entry{ border-top:1px solid var(--line); padding:16px 0; font-size:13px; }
+  .entry .row{ display:flex; justify-content:space-between; gap:12px; align-items:baseline; }
+  .entry .date{ opacity:.55; font-size:12px; }
+  .entry .text{ margin:6px 0; opacity:.85; }
+  .entry .imgs{ display:flex; gap:8px; margin:8px 0; }
+  .entry .imgs img{ height:64px; display:block; }
+  .entry .actions{ display:flex; gap:8px; margin-top:8px; }
+  .entry textarea{ margin-top:8px; }
+  .confirm{ margin-top:8px; display:flex; gap:8px; align-items:center; }
+  .confirm input{ width:140px; }
+  .editImgs{ display:flex; gap:10px; flex-wrap:wrap; margin:10px 0; }
+  .editImgs figure{ margin:0; text-align:center; }
+  .editImgs img{ height:64px; display:block; margin-bottom:4px; }
+  .editImgs button{ font-size:11px; opacity:.7; background:none; border:none; color:inherit; cursor:pointer; }
+  .editImgs button:hover{ opacity:1; }
+</style>
+</head>
+<body>
+
+  <h1>diary — subidor local · solo en este Mac</h1>
+
+  <h2>Nueva entrada</h2>
+
+  <div id="drop">arrastra una o varias fotos aquí, o toca para elegirlas</div>
+  <input type="file" id="fileInput" accept="image/*" multiple>
+  <div class="thumbs" id="thumbs"></div>
+
+  <div class="cropPanel" id="cropPanel" hidden>
+    <div class="orientRow">
+      <button type="button" class="orientBtn" data-o="h">Horizontal (3:2)</button>
+      <button type="button" class="orientBtn" data-o="v">Vertical (2:3)</button>
+    </div>
+    <div class="cropStage" id="cropStage">
+      <img id="cropImg" alt="">
+    </div>
+    <div class="cropZoomRow">
+      <span class="hint">zoom</span>
+      <input type="range" id="cropZoom" min="1" max="3" step="0.01" value="1">
+    </div>
+    <div class="cropActions">
+      <button type="button" class="primary" id="cropApply">Usar este encuadre</button>
+      <button type="button" class="plain" id="cropCancel">Cancelar</button>
+    </div>
+  </div>
+
+  <div class="field" style="margin-top:24px">
+    <label for="date">Fecha</label>
+    <input type="date" id="date">
+    <div class="hint" id="dateHint"></div>
+  </div>
+
+  <div class="field">
+    <label for="text">Texto (opcional)</label>
+    <textarea id="text" maxlength="600"></textarea>
+    <div class="counter"><span id="textCount">0</span>/600</div>
+  </div>
+
+  <button class="primary" id="publishBtn">Publicar entrada</button>
+  <div id="status"></div>
+
+  <h2>Últimas entradas</h2>
+  <div id="entries"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // { filename, dataUrl, lastModified, alt, naturalWidth, naturalHeight,
+  //   orientation: 'h'|'v'|null, crop: {cx,cy,cw,ch}|null, framedPreview: dataURL|null }
+  const state = { images: [] };
+  let dateTouchedByUser = false;
+
+  const drop = document.getElementById('drop');
+  const fileInput = document.getElementById('fileInput');
+  const thumbs = document.getElementById('thumbs');
+  const dateEl = document.getElementById('date');
+  const dateHint = document.getElementById('dateHint');
+  const textEl = document.getElementById('text');
+  const textCount = document.getElementById('textCount');
+  const statusEl = document.getElementById('status');
+  const publishBtn = document.getElementById('publishBtn');
+  const entriesEl = document.getElementById('entries');
+
+  // --- Gestor de encuadre: marco fijo por orientación (3:2 / 2:3), con
+  // paneo y zoom. El recorte se guarda como fracciones (0–1) de la imagen
+  // ORIGINAL, para que el servidor lo aplique sobre el archivo de verdad,
+  // no sobre esta vista previa reducida — así el resultado final nunca
+  // pierde calidad respecto a recortar directamente el original.
+  const FRAME_RATIO = { h: 3/2, v: 2/3 };
+  const cropPanel = document.getElementById('cropPanel');
+  const cropStage = document.getElementById('cropStage');
+  const cropImg = document.getElementById('cropImg');
+  const cropZoom = document.getElementById('cropZoom');
+  const cropApplyBtn = document.getElementById('cropApply');
+  const cropCancelBtn = document.getElementById('cropCancel');
+  let cropTarget = null; // { dataUrl, naturalWidth, naturalHeight, orientation, crop, onApply(orientation, crop) }
+  let cropState = null; // { orientation, tx, ty, s, sBase }
+
+  function cropBase(orientation, iw, ih, stageW, stageH){
+    const sBase = Math.max(stageW/iw, stageH/ih); // "cubrir" el marco, como object-fit:cover
+    return { sBase, tx: (stageW - iw*sBase)/2, ty: (stageH - ih*sBase)/2 };
+  }
+
+  function clampPan(tx, ty, s, iw, ih, stageW, stageH){
+    const minTx = stageW - iw*s, minTy = stageH - ih*s; // no dejar ver fuera de la foto
+    return { tx: Math.min(0, Math.max(minTx, tx)), ty: Math.min(0, Math.max(minTy, ty)) };
+  }
+
+  function renderCropStage(){
+    const { orientation, tx, ty, s } = cropState;
+    cropStage.className = 'cropStage' + (orientation === 'v' ? ' orient-v' : '');
+    cropImg.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+  }
+
+  // target: { dataUrl, naturalWidth, naturalHeight, orientation, crop, onApply }
+  // Se usa tanto para una foto recien soltada como para reencuadrar una ya
+  // publicada (con su original ya cargado por quien llama a esto).
+  function openCropTool(target){
+    cropTarget = target;
+    cropPanel.hidden = false; // quitar [hidden] ya fuerza el recalculo del layout
+    cropImg.src = target.dataUrl;
+
+    const setup = (orientation) => {
+      // getBoundingClientRect() aqui, justo despues de mostrar el panel,
+      // ya da el tamaño real sin esperar ningun fotograma — un
+      // requestAnimationFrame aqui era innecesario, y en algunos contextos
+      // (pestañas en segundo plano, ciertos entornos de automatizacion) ni
+      // siquiera llega a dispararse, dejando el marco sin encuadrar.
+      const r = cropStage.getBoundingClientRect();
+      const base = cropBase(orientation, target.naturalWidth, target.naturalHeight, r.width, r.height);
+      cropState = { orientation, s: base.sBase, tx: base.tx, ty: base.ty, sBase: base.sBase };
+      cropZoom.value = 1;
+      [...cropPanel.querySelectorAll('.orientBtn')].forEach(b => b.classList.toggle('active', b.dataset.o === orientation));
+      renderCropStage();
+    };
+
+    // si ya se habia encuadrado antes, seguir desde ahi; si no, horizontal por defecto
+    setup(target.orientation || 'h');
+
+    cropPanel.querySelectorAll('.orientBtn').forEach(b => {
+      b.onclick = () => setup(b.dataset.o);
+    });
+
+    cropPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function closeCropTool(){
+    cropPanel.hidden = true;
+    cropTarget = null;
+    cropState = null;
+  }
+
+  cropZoom.addEventListener('input', () => {
+    if (!cropState || !cropTarget) return;
+    const r = cropStage.getBoundingClientRect();
+    const zoomFactor = Number(cropZoom.value);
+    const newS = cropState.sBase * zoomFactor;
+    // mantener el centro del marco fijo al hacer zoom, no la esquina
+    const cx = r.width/2, cy = r.height/2;
+    const imgCx = (cx - cropState.tx) / cropState.s, imgCy = (cy - cropState.ty) / cropState.s;
+    let tx = cx - imgCx*newS, ty = cy - imgCy*newS;
+    ({ tx, ty } = clampPan(tx, ty, newS, cropTarget.naturalWidth, cropTarget.naturalHeight, r.width, r.height));
+    cropState.s = newS; cropState.tx = tx; cropState.ty = ty;
+    renderCropStage();
+  });
+
+  (function setupCropDrag(){
+    let dragging = false, startX, startY, startTx, startTy;
+    cropStage.addEventListener('pointerdown', e => {
+      if (!cropState) return;
+      dragging = true; cropStage.classList.add('grabbing');
+      cropStage.setPointerCapture(e.pointerId);
+      startX = e.clientX; startY = e.clientY; startTx = cropState.tx; startTy = cropState.ty;
+    });
+    cropStage.addEventListener('pointermove', e => {
+      if (!dragging || !cropState || !cropTarget) return;
+      const r = cropStage.getBoundingClientRect();
+      const { tx, ty } = clampPan(
+        startTx + (e.clientX - startX), startTy + (e.clientY - startY),
+        cropState.s, cropTarget.naturalWidth, cropTarget.naturalHeight, r.width, r.height
+      );
+      cropState.tx = tx; cropState.ty = ty;
+      renderCropStage();
+    });
+    const endDrag = () => { dragging = false; cropStage.classList.remove('grabbing'); };
+    cropStage.addEventListener('pointerup', endDrag);
+    cropStage.addEventListener('pointercancel', endDrag);
+  })();
+
+  cropCancelBtn.addEventListener('click', closeCropTool);
+
+  cropApplyBtn.addEventListener('click', async () => {
+    if (!cropTarget || !cropState) return;
+    const r = cropStage.getBoundingClientRect();
+    const { orientation, tx, ty, s } = cropState;
+
+    // de (tx,ty,s) en pixeles de pantalla a fracciones (0–1) de la imagen ORIGINAL
+    const cx = (-tx) / s / cropTarget.naturalWidth;
+    const cy = (-ty) / s / cropTarget.naturalHeight;
+    const cw = (r.width / s) / cropTarget.naturalWidth;
+    const ch = (r.height / s) / cropTarget.naturalHeight;
+
+    const onApply = cropTarget.onApply;
+    closeCropTool();
+    await onApply(orientation, { cx, cy, cw, ch });
+  });
+
+  // Miniatura pequeña YA recortada, a partir de un dataUrl + su recorte —
+  // solo para vistas previas de 140/64px (el recorte real para publicar lo
+  // hace sharp contra el archivo original completo, no contra este canvas).
+  function renderFramedPreview(dataUrl, orientation, crop, naturalWidth, naturalHeight){
+    return new Promise((resolve) => {
+      const ratio = FRAME_RATIO[orientation];
+      const outW = 280, outH = Math.round(outW / ratio);
+      const canvas = document.createElement('canvas');
+      canvas.width = outW; canvas.height = outH;
+      const ctx = canvas.getContext('2d');
+      const el = new Image();
+      el.onload = () => {
+        const sx = crop.cx * naturalWidth, sy = crop.cy * naturalHeight;
+        const sw = crop.cw * naturalWidth, sh = crop.ch * naturalHeight;
+        ctx.drawImage(el, sx, sy, sw, sh, 0, 0, outW, outH);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      el.src = dataUrl;
+    });
+  }
+
+  function readAsDataURL(file){
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+  }
+
+  function readNaturalSize(dataUrl){
+    return new Promise((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve({ w: el.naturalWidth, h: el.naturalHeight });
+      el.onerror = reject;
+      el.src = dataUrl;
+    });
+  }
+
+  async function addFiles(fileList){
+    const files = [...fileList].filter(f => f.type.startsWith('image/'));
+    for (const file of files){
+      const dataUrl = await readAsDataURL(file);
+      const { w, h } = await readNaturalSize(dataUrl);
+      state.images.push({
+        filename: file.name, dataUrl, lastModified: file.lastModified,
+        naturalWidth: w, naturalHeight: h,
+        orientation: null, crop: null, framedPreview: null,
+      });
+    }
+    renderThumbs();
+    if (!dateTouchedByUser && state.images.length) proposeDate(state.images[0]);
+  }
+
+  async function proposeDate(img){
+    dateHint.textContent = 'leyendo fecha…';
+    try{
+      const r = await fetch('/api/exif', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ dataUrl: img.dataUrl, lastModified: img.lastModified }) });
+      const j = await r.json();
+      // el campo ya no lleva hora (solo type=date): nos quedamos con la parte de fecha
+      if (!dateTouchedByUser) dateEl.value = j.value.slice(0, 10);
+      dateHint.textContent = j.source === 'exif'
+        ? 'de los metadatos de la foto'
+        : 'del archivo — esta foto no lleva EXIF (frecuente en escaneos de película); revisa que sea correcta';
+    }catch(e){
+      dateHint.textContent = 'no se pudo proponer una fecha — escríbela a mano';
+    }
+  }
+
+  function renderThumbs(){
+    thumbs.innerHTML = '';
+    state.images.forEach((img, i) => {
+      const framed = !!img.crop;
+      const el = document.createElement('div');
+      el.className = 'thumb' + (framed ? (' orient-' + img.orientation) : '') + (framed ? '' : ' unframed');
+      el.draggable = true; el.dataset.i = i;
+      el.innerHTML = `
+        <div class="badge ${framed ? '' : 'pending'}">${framed ? (img.orientation === 'h' ? 'horizontal' : 'vertical') : 'sin encuadrar'}</div>
+        <div class="thumbImgWrap ${framed ? '' : 'raw'}"><img src="${framed ? img.framedPreview : img.dataUrl}" alt=""></div>
+        <div class="thumbActions">
+          <button type="button" class="frameBtn">${framed ? 'Reencuadrar' : 'Encuadrar'}</button>
+          <button type="button" class="rm">quitar</button>
+        </div>`;
+      el.querySelector('.rm').addEventListener('click', () => { state.images.splice(i,1); renderThumbs(); });
+      el.querySelector('.frameBtn').addEventListener('click', () => openCropTool({
+        dataUrl: img.dataUrl, naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight,
+        orientation: img.orientation, crop: img.crop,
+        onApply: async (orientation, crop) => {
+          img.orientation = orientation; img.crop = crop;
+          img.framedPreview = await renderFramedPreview(img.dataUrl, orientation, crop, img.naturalWidth, img.naturalHeight);
+          renderThumbs();
+        }
+      }));
+      el.addEventListener('dragstart', () => el.classList.add('dragging'));
+      el.addEventListener('dragend', () => el.classList.remove('dragging'));
+      el.addEventListener('dragover', e => e.preventDefault());
+      el.addEventListener('drop', e => {
+        e.preventDefault();
+        const from = Number(document.querySelector('.thumb.dragging').dataset.i);
+        const to = i;
+        const [moved] = state.images.splice(from, 1);
+        state.images.splice(to, 0, moved);
+        renderThumbs();
+      });
+      thumbs.appendChild(el);
+    });
+  }
+
+  drop.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => addFiles(fileInput.files));
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault(); drop.classList.remove('over');
+    addFiles(e.dataTransfer.files);
+  });
+  dateEl.addEventListener('input', () => { dateTouchedByUser = true; });
+  textEl.addEventListener('input', () => { textCount.textContent = textEl.value.length; });
+
+  function setStatus(text, kind){
+    statusEl.textContent = text;
+    statusEl.className = kind || '';
+  }
+
+  publishBtn.addEventListener('click', async () => {
+    if (!state.images.length) return setStatus('Añade al menos una foto.', 'err');
+    if (!dateEl.value) return setStatus('Falta la fecha.', 'err');
+    const missingCrop = state.images.findIndex(i => !i.crop);
+    if (missingCrop !== -1) return setStatus(`Falta encuadrar la foto ${missingCrop+1}.`, 'err');
+
+    publishBtn.disabled = true;
+    setStatus('Generando variantes y publicando…');
+    try{
+      const r = await fetch('/api/publish', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          date: dateEl.value, text: textEl.value,
+          images: state.images.map(i => ({ filename:i.filename, dataUrl:i.dataUrl, orientation:i.orientation, crop:i.crop }))
+        })});
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'fallo desconocido');
+      setStatus(`Publicado (commit ${j.commit}). Falta el push cuando quieras.`, 'ok');
+      state.images = []; closeCropTool(); renderThumbs();
+      dateEl.value = ''; dateTouchedByUser = false; dateHint.textContent = '';
+      textEl.value = ''; textCount.textContent = '0';
+      loadEntries();
+      offerPush();
+    }catch(e){
+      setStatus('Error: ' + e.message, 'err');
+    }finally{
+      publishBtn.disabled = false;
+    }
+  });
+
+  function offerPush(){
+    const b = document.createElement('button');
+    b.className = 'plain'; b.textContent = 'Hacer push ahora';
+    b.style.marginTop = '8px';
+    b.addEventListener('click', async () => {
+      b.disabled = true; b.textContent = 'haciendo push…';
+      try{
+        const r = await fetch('/api/git/push', { method:'POST' });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error);
+        b.textContent = 'push hecho ✓';
+      }catch(e){
+        b.textContent = 'error: ' + e.message;
+      }
+    });
+    statusEl.after(b);
+  }
+
+  const MONTHS_ES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  // Lee año/mes/día directamente del texto del ISO, sin pasar por Date():
+  // un new Date("2026-09-02T00:00:00+02:00") representa las 22:00 UTC del
+  // día 1, así que formatearlo forzando UTC retrocedía un día — justo el
+  // fallo que ya se evitó en el generador del fragmento estático.
+  function fmtDate(iso){
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+    if (!m) return iso;
+    return `${Number(m[3])} de ${MONTHS_ES[Number(m[2])-1]} de ${m[1]}`;
+  }
+
+  async function loadEntries(){
+    const r = await fetch('/api/entries?limit=15');
+    const j = await r.json();
+    entriesEl.innerHTML = '';
+    j.entries.forEach(entry => entriesEl.appendChild(renderEntry(entry)));
+  }
+
+  function renderEntry(entry){
+    const el = document.createElement('div');
+    el.className = 'entry';
+    el.innerHTML = `
+      <div class="row"><strong>${fmtDate(entry.date)}</strong>
+        <span class="date">${entry.id}</span></div>
+      <div class="imgs">${entry.images.map(i => `<img src="${i.srcset.find(s=>s.w===800)?.src || i.src}" alt="">`).join('')}</div>
+      <div class="text">${entry.text ? escapeHTML(entry.text) : '<span style="opacity:.4">(sin texto)</span>'}</div>
+      <div class="actions">
+        <button type="button" class="plain edit">Editar</button>
+        <button type="button" class="plain del">Borrar</button>
+      </div>`;
+    el.querySelector('.edit').addEventListener('click', () => showEditForm(el, entry));
+    el.querySelector('.del').addEventListener('click', () => showDeleteConfirm(el, entry));
+    return el;
+  }
+
+  function escapeHTML(s){ return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+  function showEditForm(el, entry){
+    // cambios de encuadre pendientes de esta sesion de edicion: index -> {orientation, crop}
+    const pendingCrops = {};
+
+    const form = document.createElement('div');
+    const imgsHtml = entry.images.map((img, i) => {
+      const preview = img.srcset.find(s => s.w === 800)?.src || img.src;
+      return `<figure data-i="${i}">
+        <img src="${preview}" alt="">
+        <button type="button" class="reframe">Reencuadrar</button>
+      </figure>`;
+    }).join('');
+    form.innerHTML = `
+      <textarea class="editText">${entry.text || ''}</textarea>
+      <div class="editImgs">${imgsHtml}</div>
+      <div class="hint editHint"></div>
+      <div class="actions">
+        <button type="button" class="plain save">Guardar</button>
+        <button type="button" class="plain cancel">Cancelar</button>
+      </div>`;
+
+    const hint = form.querySelector('.editHint');
+
+    form.querySelectorAll('.reframe').forEach((btn) => {
+      const i = Number(btn.closest('figure').dataset.i);
+      btn.addEventListener('click', async () => {
+        btn.disabled = true; btn.textContent = 'cargando…';
+        try {
+          const r = await fetch(`/api/entries/${encodeURIComponent(entry.id)}/original/${i}`);
+          if (!r.ok) {
+            const j = await r.json().catch(() => ({}));
+            throw new Error(j.error || 'no se pudo cargar el original');
+          }
+          const blob = await r.blob();
+          const dataUrl = await new Promise((resolve, reject) => {
+            const fr = new FileReader();
+            fr.onload = () => resolve(fr.result);
+            fr.onerror = reject;
+            fr.readAsDataURL(blob);
+          });
+          const { w, h } = await readNaturalSize(dataUrl);
+          // sigue desde el encuadre con el que se publico, si se guardo
+          // (las entradas de antes de que esto existiera no lo tienen: se
+          // parte de un encuadre centrado nuevo, sin zoom).
+          const saved = entry.images[i];
+          const current = pendingCrops[i] || {
+            orientation: saved.orientation || (saved.width >= saved.height ? 'h' : 'v'),
+            crop: saved.crop || null,
+          };
+
+          openCropTool({
+            dataUrl, naturalWidth: w, naturalHeight: h,
+            orientation: current.orientation, crop: current.crop,
+            onApply: (orientation, crop) => {
+              pendingCrops[i] = { orientation, crop };
+              const fig = form.querySelector(`figure[data-i="${i}"] img`);
+              renderFramedPreview(dataUrl, orientation, crop, w, h).then(prev => { fig.src = prev; });
+              hint.textContent = 'Hay encuadres sin guardar todavía.';
+            }
+          });
+        } catch (e) {
+          alert('Error: ' + e.message);
+        } finally {
+          btn.disabled = false; btn.textContent = 'Reencuadrar';
+        }
+      });
+    });
+
+    form.querySelector('.cancel').addEventListener('click', () => { form.remove(); });
+    form.querySelector('.save').addEventListener('click', async () => {
+      const text = form.querySelector('.editText').value;
+      const crops = Object.entries(pendingCrops).map(([index, c]) => ({
+        index: Number(index), orientation: c.orientation, ...c.crop
+      }));
+      const r = await fetch('/api/entries/' + encodeURIComponent(entry.id), {
+        method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text, crops })
+      });
+      const j = await r.json();
+      if (!r.ok) return alert('Error: ' + j.error);
+      form.remove();
+      loadEntries();
+    });
+    el.appendChild(form);
+  }
+
+  function showDeleteConfirm(el, entry){
+    const day = entry.date.slice(0,10);
+    const box = document.createElement('div');
+    box.className = 'confirm';
+    box.innerHTML = `<span class="hint">Escribe ${day} para borrar de verdad:</span>
+      <input type="text" class="confirmInput" placeholder="${day}">
+      <button type="button" class="plain confirmDel">Borrar</button>
+      <button type="button" class="plain confirmCancel">Cancelar</button>`;
+    box.querySelector('.confirmCancel').addEventListener('click', () => box.remove());
+    box.querySelector('.confirmDel').addEventListener('click', async () => {
+      const val = box.querySelector('.confirmInput').value.trim();
+      if (val !== day) return alert('No coincide con ' + day);
+      const r = await fetch('/api/entries/' + encodeURIComponent(entry.id), {
+        method:'DELETE', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ confirmDate: val })
+      });
+      const j = await r.json();
+      if (!r.ok) return alert('Error: ' + j.error);
+      loadEntries();
+    });
+    el.appendChild(box);
+  }
+
+  loadEntries();
+})();
+</script>
+</body>
+</html>

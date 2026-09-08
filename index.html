@@ -144,12 +144,13 @@
 
     .menu{ position: relative; font-size: var(--ui-font-size); opacity: 1; color: #fff; }
     
-    .menu button{ 
-        background:none; border:none; font:inherit; cursor:pointer; padding:6px 10px; color: #fff; 
-        text-shadow: 0 1px 4px rgba(0,0,0,0.5); 
-        opacity: 0.9; transition: opacity 0.3s;
+    .menu button, .menu-link{
+        background:none; border:none; font:inherit; cursor:pointer; padding:6px 10px; color: #fff;
+        text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+        opacity: 0.9; transition: opacity 0.3s; text-decoration:none; display:inline-block;
     }
-    .menu button:hover { opacity: 1; }
+    .menu button:hover, .menu-link:hover { opacity: 1; }
+    .menu-sep{ opacity: .5; }
 
     .menu-list{
       position:absolute; right:0; top:100%; margin-top:10px;
@@ -161,9 +162,9 @@
     .menu.open .menu-list{ display:block; }
 
     .menu-list button{
-      width:100%; text-align:left; padding:10px 14px; border:none;
+      display:block; width:100%; text-align:left; padding:10px 14px; border:none;
       background:none; cursor:pointer; font-size:13px; color: #bbb;
-      text-shadow: none; 
+      text-shadow: none;
     }
     .menu-list button:hover{ background: rgba(255,255,255,.1); color: #fff; }
 
@@ -391,7 +392,7 @@
   <div class="header-inner">
     <img src="assets/img/logo.png" class="logo" id="logoHome">
     <div class="menu" id="menu">
-      <button id="menuToggle">STORIES</button>
+      <button id="menuToggle">STORIES</button><span class="menu-sep" aria-hidden="true">/</span><a href="/diary/" class="menu-link">DIARY</a>
       <div class="menu-list">
         <button data-target="home">HOME</button>
         <button data-target="psilicon-flesh">PSILICON FLESH</button>
