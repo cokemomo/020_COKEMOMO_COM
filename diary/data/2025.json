@@ -425,6 +425,46 @@
           }
         }
       ]
+    },
+    {
+      "id": "2025-05-05-0000-3537",
+      "date": "2025-05-05T00:00:00+02:00",
+      "text": "Ribadesella, Asturias.",
+      "images": [
+        {
+          "src": "/diary/media/2025/05/2025-05-05-0000-3537.jpg",
+          "srcset": [
+            {
+              "w": 800,
+              "src": "/diary/media/2025/05/2025-05-05-0000-3537-800.jpg"
+            },
+            {
+              "w": 1600,
+              "src": "/diary/media/2025/05/2025-05-05-0000-3537-1600.jpg"
+            },
+            {
+              "w": 2400,
+              "src": "/diary/media/2025/05/2025-05-05-0000-3537.jpg"
+            }
+          ],
+          "width": 2400,
+          "height": 1600,
+          "alt": "Ribadesella, Asturias.",
+          "orientation": "h",
+          "crop": {
+            "cx": 0.05129126297182774,
+            "cy": 0.04257410312097795,
+            "cw": 0.8855919688152185,
+            "ch": 0.9009009009009008,
+            "adjust": {
+              "exposure": 0,
+              "contrast": 3,
+              "saturation": 2,
+              "temperature": 10
+            }
+          }
+        }
+      ]
     }
   ]
 }
