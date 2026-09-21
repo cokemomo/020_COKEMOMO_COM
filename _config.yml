@@ -8,3 +8,4 @@ exclude:
   - tools
   - Diary.command
   - DESIGN_TOKENS.md
+  - claude-ai-reports
