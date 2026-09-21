@@ -145,7 +145,7 @@
     .d-sep{ opacity: var(--footer-opacity); }
     .d-text{ color: var(--text-main); opacity:.85; }
 
-    .d-end{ text-align:center; font-size:var(--footer-font-size); opacity:var(--footer-opacity); padding: 40px 0 20px; border-top: var(--border); }
+    .d-intro{ font-size:var(--footer-font-size); opacity:var(--footer-opacity); padding: 0 0 32px; border-bottom: var(--border); margin-bottom: 32px; }
     .d-sentinel{ height:1px; }
 
     /* --- índice compacto en móvil --- */
@@ -246,6 +246,8 @@
     <aside class="diary-index" id="diaryIndex" aria-label="Índice de meses"></aside>
 
     <div class="diary-flow" id="diaryFlow">
+
+      <p class="d-intro">All photos taken with a 50mm Summilux on a Leica m6.</p>
 
       <!-- Primer tramo pre-renderizado: visible sin JavaScript y sin esperar
            al fetch. El JS reconoce estos [data-entry-id] al cargar el JSON
@@ -534,9 +536,6 @@
     const nextIdx = yearPtr + 1;
     if (nextIdx >= years.length) {
       ended = true;
-      const end = document.createElement('p');
-      end.className = 'd-end'; end.textContent = 'principio del diario';
-      flow.insertBefore(end, sentinel);
       loading = false;
       return;
     }
