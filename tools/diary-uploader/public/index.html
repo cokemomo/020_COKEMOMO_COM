@@ -58,6 +58,12 @@
     pointer-events:none; max-width:none; }
   .cropZoomRow{ display:flex; align-items:center; gap:10px; margin-top:14px; max-width:420px; margin-left:auto; margin-right:auto; }
   .cropZoomRow input[type=range]{ flex:1; }
+  .histogramWrap{ max-width:420px; margin:14px auto 0; }
+  .histogramWrap canvas{ width:100%; height:70px; display:block; margin-top:4px; background:#0a0a0a; border:1px solid var(--line); }
+  .adjustGrid{ display:grid; grid-template-columns:1fr 1fr; gap:12px 20px; max-width:420px; margin:18px auto 0; }
+  .adjustGrid label{ font-size:11px; opacity:.6; display:block; margin-bottom:0; }
+  .adjustGrid input[type=range]{ width:100%; display:block; margin-top:4px; }
+  .adjustReset{ display:block; margin:10px auto 0; }
   .cropPanel .cropActions{ display:flex; gap:8px; margin-top:16px; justify-content:center; }
 
   button.primary{
@@ -71,6 +77,12 @@
   #status{ font-size:12px; opacity:.75; margin-top:14px; min-height:1.4em; }
   #status.err{ color:#e07a7a; opacity:1; }
   #status.ok{ color:#8fd3a6; opacity:1; }
+
+  .gitBar{ display:flex; align-items:center; gap:12px; font-size:12px; opacity:.7;
+    border:1px solid var(--line); padding:8px 12px; margin-bottom:24px; }
+  .gitBar.pending{ opacity:1; color:#e0965a; border-color:rgba(224,150,90,.4); }
+  .gitBar.pushing{ opacity:1; }
+  .gitBar button{ margin-left:auto; }
 
   .entry{ border-top:1px solid var(--line); padding:16px 0; font-size:13px; }
   .entry .row{ display:flex; justify-content:space-between; gap:12px; align-items:baseline; }
@@ -93,6 +105,11 @@
 
   <h1>diary — subidor local · solo en este Mac</h1>
 
+  <div id="gitBar" class="gitBar">
+    <span id="gitBarText">comprobando git…</span>
+    <button type="button" class="plain" id="gitBarPush" hidden>Hacer push</button>
+  </div>
+
   <h2>Nueva entrada</h2>
 
   <div id="drop">arrastra una o varias fotos aquí, o toca para elegirlas</div>
@@ -111,11 +128,39 @@
       <span class="hint">zoom</span>
       <input type="range" id="cropZoom" min="1" max="3" step="0.01" value="1">
     </div>
+
+    <div class="histogramWrap">
+      <span class="hint">histograma</span>
+      <canvas id="histogramCanvas" width="400" height="140"></canvas>
+    </div>
+
+    <div class="adjustGrid">
+      <label>exposición <span id="adjExposureVal">0</span>
+        <input type="range" id="adjExposure" min="-60" max="60" step="1" value="0"></label>
+      <label>contraste <span id="adjContrastVal">0</span>
+        <input type="range" id="adjContrast" min="-60" max="60" step="1" value="0"></label>
+      <label>saturación <span id="adjSaturationVal">0</span>
+        <input type="range" id="adjSaturation" min="-100" max="100" step="1" value="0"></label>
+      <label>temperatura <span id="adjTemperatureVal">0</span>
+        <input type="range" id="adjTemperature" min="-100" max="100" step="1" value="0"></label>
+    </div>
+    <button type="button" class="plain adjustReset" id="adjustReset">Restablecer ajustes</button>
+
     <div class="cropActions">
       <button type="button" class="primary" id="cropApply">Usar este encuadre</button>
       <button type="button" class="plain" id="cropCancel">Cancelar</button>
     </div>
   </div>
+
+  <!-- filtro SVG para la vista previa en vivo de la temperatura de color —
+       CSS no tiene un filter() nativo para esto, asi que se hace con una
+       feColorMatrix que sube/baja rojo y azul por separado (mismo calculo
+       que hace sharp de verdad al publicar). -->
+  <svg width="0" height="0" style="position:absolute">
+    <filter id="tempFilter">
+      <feColorMatrix id="tempMatrix" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0"/>
+    </filter>
+  </svg>
 
   <div class="field" style="margin-top:24px">
     <label for="date">Fecha</label>
@@ -167,8 +212,138 @@
   const cropZoom = document.getElementById('cropZoom');
   const cropApplyBtn = document.getElementById('cropApply');
   const cropCancelBtn = document.getElementById('cropCancel');
+  const histogramCanvas = document.getElementById('histogramCanvas');
   let cropTarget = null; // { dataUrl, naturalWidth, naturalHeight, orientation, crop, onApply(orientation, crop) }
-  let cropState = null; // { orientation, tx, ty, s, sBase }
+  let cropState = null; // { orientation, tx, ty, s, sBase, adjust }
+  let histSourceCanvas = null; // copia reducida de la foto entera, para calcular el histograma rápido
+
+  // --- ajustes finos: exposición/contraste/saturación/temperatura ---
+  // Mismo cálculo que hace sharp de verdad al publicar (ver images.js) —
+  // la vista previa aquí es solo aproximada (CSS/canvas), el resultado
+  // real siempre sale de aplicarlo contra el archivo original completo.
+  const ADJUST_NEUTRAL = { exposure:0, contrast:0, saturation:0, temperature:0 };
+  const adjustSliders = {
+    exposure: document.getElementById('adjExposure'),
+    contrast: document.getElementById('adjContrast'),
+    saturation: document.getElementById('adjSaturation'),
+    temperature: document.getElementById('adjTemperature'),
+  };
+  const adjustVals = {
+    exposure: document.getElementById('adjExposureVal'),
+    contrast: document.getElementById('adjContrastVal'),
+    saturation: document.getElementById('adjSaturationVal'),
+    temperature: document.getElementById('adjTemperatureVal'),
+  };
+  const tempMatrix = document.getElementById('tempMatrix');
+
+  function cssFilterFor(adjust){
+    const b = 1 + adjust.exposure/100, c = 1 + adjust.contrast/100, s = Math.max(0, 1 + adjust.saturation/100);
+    return `url(#tempFilter) brightness(${b}) contrast(${c}) saturate(${s})`;
+  }
+
+  function renderAdjustLive(){
+    if (!cropState) return;
+    const t = Math.max(-1, Math.min(1, cropState.adjust.temperature/100));
+    tempMatrix.setAttribute('values', `${1+t*0.25} 0 0 0 0  0 1 0 0 0  0 0 ${1-t*0.25} 0 0  0 0 0 1 0`);
+    cropImg.style.filter = cssFilterFor(cropState.adjust);
+  }
+
+  Object.entries(adjustSliders).forEach(([key, el]) => {
+    el.addEventListener('input', () => {
+      if (!cropState) return;
+      cropState.adjust[key] = Number(el.value);
+      adjustVals[key].textContent = el.value;
+      renderAdjustLive();
+      renderHistogram();
+    });
+  });
+
+  document.getElementById('adjustReset').addEventListener('click', () => {
+    if (!cropState) return;
+    cropState.adjust = { ...ADJUST_NEUTRAL };
+    Object.entries(adjustSliders).forEach(([key, el]) => { el.value = 0; adjustVals[key].textContent = '0'; });
+    renderAdjustLive();
+    renderHistogram();
+  });
+
+  // --- histograma ---
+  // Se calcula sobre una copia reducida de la foto entera (como mucho 400px
+  // de lado largo), nunca sobre el archivo original: así sigue siendo
+  // instantáneo aunque la foto pese 20 MB y el usuario esté arrastrando el
+  // deslizador de un ajuste. Es una aproximación (igual que la miniatura),
+  // no lo que calcula sharp de verdad al publicar.
+  function buildHistSource(dataUrl){
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 400;
+        const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+        const w = Math.max(1, Math.round(img.naturalWidth * scale));
+        const h = Math.max(1, Math.round(img.naturalHeight * scale));
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(c);
+      };
+      img.onerror = () => resolve(null);
+      img.src = dataUrl;
+    });
+  }
+
+  // Mismo cálculo que usa "Usar este encuadre" para pasarle el recorte al
+  // servidor — aquí solo para saber qué trozo de histSourceCanvas mirar.
+  function currentCropRect(){
+    if (!cropState || !cropTarget) return null;
+    const r = cropStage.getBoundingClientRect();
+    const { tx, ty, s } = cropState;
+    return {
+      cx: (-tx) / s / cropTarget.naturalWidth,
+      cy: (-ty) / s / cropTarget.naturalHeight,
+      cw: (r.width / s) / cropTarget.naturalWidth,
+      ch: (r.height / s) / cropTarget.naturalHeight,
+    };
+  }
+
+  function drawHistogramBars(bins){
+    const ctx = histogramCanvas.getContext('2d');
+    const w = histogramCanvas.width, h = histogramCanvas.height;
+    ctx.clearRect(0, 0, w, h);
+    const maxCount = Math.max(1, ...bins);
+    // Escala logarítmica: si no, un pico de negro o blanco puros (muy
+    // habitual en foto analógica) aplastaría el resto del histograma a una
+    // línea plana.
+    const barW = w / bins.length;
+    ctx.fillStyle = 'rgba(224,224,224,0.85)';
+    for (let i = 0; i < bins.length; i++){
+      const bh = (Math.log(bins[i] + 1) / Math.log(maxCount + 1)) * h;
+      ctx.fillRect(i * barW, h - bh, Math.ceil(barW), bh);
+    }
+  }
+
+  function renderHistogram(){
+    if (!histSourceCanvas || !cropState) return;
+    const rect = currentCropRect();
+    if (!rect) return;
+    const sw = histSourceCanvas.width, sh = histSourceCanvas.height;
+    const sx = Math.max(0, Math.min(sw - 1, rect.cx * sw));
+    const sy = Math.max(0, Math.min(sh - 1, rect.cy * sh));
+    const cw = Math.max(1, Math.min(sw - sx, rect.cw * sw));
+    const ch = Math.max(1, Math.min(sh - sy, rect.ch * sh));
+
+    const work = document.createElement('canvas');
+    work.width = 160; work.height = 100;
+    const wctx = work.getContext('2d');
+    wctx.drawImage(histSourceCanvas, sx, sy, cw, ch, 0, 0, work.width, work.height);
+    applyCanvasAdjustments(wctx, work.width, work.height, cropState.adjust);
+
+    const data = wctx.getImageData(0, 0, work.width, work.height).data;
+    const bins = new Uint32Array(128);
+    for (let i = 0; i < data.length; i += 4){
+      const l = Math.round((0.2126*data[i] + 0.7152*data[i+1] + 0.0722*data[i+2]) / 255 * 127);
+      bins[Math.max(0, Math.min(127, l))]++;
+    }
+    drawHistogramBars(bins);
+  }
 
   function cropBase(orientation, iw, ih, stageW, stageH){
     const sBase = Math.max(stageW/iw, stageH/ih); // "cubrir" el marco, como object-fit:cover
@@ -183,7 +358,16 @@
   function renderCropStage(){
     const { orientation, tx, ty, s } = cropState;
     cropStage.className = 'cropStage' + (orientation === 'v' ? ' orient-v' : '');
+    // Forzar aquí un reflow (leer una medida de layout) antes de tocar el
+    // transform: en Safari, cambiar la clase (que cambia el aspect-ratio
+    // del marco) y el transform de la foto en el mismo instante a veces
+    // deja el pintado desincronizado del layout real — la foto se queda
+    // pintada como si el marco fuera el de antes. Forzar la lectura aquí
+    // no cambia nada visible, solo obliga a Safari a ponerse al día antes
+    // de aplicar la nueva transformación.
+    void cropStage.offsetHeight;
     cropImg.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+    renderHistogram();
   }
 
   // target: { dataUrl, naturalWidth, naturalHeight, orientation, crop, onApply }
@@ -193,6 +377,9 @@
     cropTarget = target;
     cropPanel.hidden = false; // quitar [hidden] ya fuerza el recalculo del layout
     cropImg.src = target.dataUrl;
+    histSourceCanvas = null;
+    drawHistogramBars(new Uint32Array(128)); // vacío mientras carga
+    buildHistSource(target.dataUrl).then((c) => { histSourceCanvas = c; renderHistogram(); });
 
     const setup = (orientation) => {
       // getBoundingClientRect() aqui, justo despues de mostrar el panel,
@@ -200,12 +387,24 @@
       // requestAnimationFrame aqui era innecesario, y en algunos contextos
       // (pestañas en segundo plano, ciertos entornos de automatizacion) ni
       // siquiera llega a dispararse, dejando el marco sin encuadrar.
+      // El zoom se reinicia al cambiar de orientacion (el marco es otro),
+      // pero los ajustes de color son independientes del encuadre y se
+      // conservan si ya se habian tocado en esta misma sesion.
+      const keepAdjust = cropState ? cropState.adjust : { ...ADJUST_NEUTRAL, ...(target.adjust || {}) };
+      // La forma del marco (y por tanto su tamaño) depende de esta clase —
+      // hay que ponerla ANTES de medir, o se mide el marco de la
+      // orientación anterior (el bug: al pasar a vertical, el zoom salía
+      // calculado para un marco horizontal más bajo, y la foto se quedaba
+      // corta dejando un hueco debajo).
+      cropStage.className = 'cropStage' + (orientation === 'v' ? ' orient-v' : '');
       const r = cropStage.getBoundingClientRect();
       const base = cropBase(orientation, target.naturalWidth, target.naturalHeight, r.width, r.height);
-      cropState = { orientation, s: base.sBase, tx: base.tx, ty: base.ty, sBase: base.sBase };
+      cropState = { orientation, s: base.sBase, tx: base.tx, ty: base.ty, sBase: base.sBase, adjust: keepAdjust };
       cropZoom.value = 1;
       [...cropPanel.querySelectorAll('.orientBtn')].forEach(b => b.classList.toggle('active', b.dataset.o === orientation));
+      Object.entries(adjustSliders).forEach(([key, el]) => { el.value = keepAdjust[key]; adjustVals[key].textContent = keepAdjust[key]; });
       renderCropStage();
+      renderAdjustLive();
     };
 
     // si ya se habia encuadrado antes, seguir desde ahi; si no, horizontal por defecto
@@ -222,6 +421,7 @@
     cropPanel.hidden = true;
     cropTarget = null;
     cropState = null;
+    histSourceCanvas = null;
   }
 
   cropZoom.addEventListener('input', () => {
@@ -265,24 +465,43 @@
 
   cropApplyBtn.addEventListener('click', async () => {
     if (!cropTarget || !cropState) return;
-    const r = cropStage.getBoundingClientRect();
-    const { orientation, tx, ty, s } = cropState;
-
-    // de (tx,ty,s) en pixeles de pantalla a fracciones (0–1) de la imagen ORIGINAL
-    const cx = (-tx) / s / cropTarget.naturalWidth;
-    const cy = (-ty) / s / cropTarget.naturalHeight;
-    const cw = (r.width / s) / cropTarget.naturalWidth;
-    const ch = (r.height / s) / cropTarget.naturalHeight;
-
+    const { orientation } = cropState;
+    const { cx, cy, cw, ch } = currentCropRect();
+    const adjust = { ...cropState.adjust };
     const onApply = cropTarget.onApply;
     closeCropTool();
-    await onApply(orientation, { cx, cy, cw, ch });
+    await onApply(orientation, { cx, cy, cw, ch, adjust });
   });
 
-  // Miniatura pequeña YA recortada, a partir de un dataUrl + su recorte —
-  // solo para vistas previas de 140/64px (el recorte real para publicar lo
-  // hace sharp contra el archivo original completo, no contra este canvas).
-  function renderFramedPreview(dataUrl, orientation, crop, naturalWidth, naturalHeight){
+  // Aproximación en canvas de los mismos 4 ajustes que hace sharp de
+  // verdad (ver images.js) — solo para que la miniatura de 140/64px se
+  // parezca a como va a quedar, no es el cálculo que se publica.
+  function applyCanvasAdjustments(ctx, w, h, adjust){
+    if (!adjust) return;
+    const { exposure=0, contrast=0, saturation=0, temperature=0 } = adjust;
+    if (!exposure && !contrast && !saturation && !temperature) return;
+    const bMul = Math.max(0.1, 1+exposure/100);
+    const cMul = Math.max(0.1, 1+contrast/100), cInt = (1-cMul)*128;
+    const sMul = Math.max(0, 1+saturation/100);
+    const t = Math.max(-1, Math.min(1, temperature/100));
+    const rMul = 1+t*0.25, bMulT = 1-t*0.25;
+    const img = ctx.getImageData(0,0,w,h), d = img.data;
+    for (let i=0; i<d.length; i+=4){
+      let r=d[i]*bMul, g=d[i+1]*bMul, b=d[i+2]*bMul;
+      const gray = 0.2126*r+0.7152*g+0.0722*b;
+      r = gray+(r-gray)*sMul; g = gray+(g-gray)*sMul; b = gray+(b-gray)*sMul;
+      r = r*cMul+cInt; g = g*cMul+cInt; b = b*cMul+cInt;
+      r *= rMul; b *= bMulT;
+      d[i]=Math.max(0,Math.min(255,r)); d[i+1]=Math.max(0,Math.min(255,g)); d[i+2]=Math.max(0,Math.min(255,b));
+    }
+    ctx.putImageData(img,0,0);
+  }
+
+  // Miniatura pequeña YA recortada (y con los ajustes aplicados de forma
+  // aproximada), a partir de un dataUrl + su recorte — solo para vistas
+  // previas de 140/64px; el recorte y el color reales para publicar los
+  // hace sharp contra el archivo original completo, no contra este canvas.
+  function renderFramedPreview(dataUrl, orientation, crop, naturalWidth, naturalHeight, adjust){
     return new Promise((resolve) => {
       const ratio = FRAME_RATIO[orientation];
       const outW = 280, outH = Math.round(outW / ratio);
@@ -294,6 +513,7 @@
         const sx = crop.cx * naturalWidth, sy = crop.cy * naturalHeight;
         const sw = crop.cw * naturalWidth, sh = crop.ch * naturalHeight;
         ctx.drawImage(el, sx, sy, sw, sh, 0, 0, outW, outH);
+        applyCanvasAdjustments(ctx, outW, outH, adjust);
         resolve(canvas.toDataURL('image/jpeg', 0.85));
       };
       el.src = dataUrl;
@@ -369,7 +589,7 @@
         orientation: img.orientation, crop: img.crop,
         onApply: async (orientation, crop) => {
           img.orientation = orientation; img.crop = crop;
-          img.framedPreview = await renderFramedPreview(img.dataUrl, orientation, crop, img.naturalWidth, img.naturalHeight);
+          img.framedPreview = await renderFramedPreview(img.dataUrl, orientation, crop, img.naturalWidth, img.naturalHeight, crop.adjust);
           renderThumbs();
         }
       }));
@@ -404,6 +624,52 @@
     statusEl.className = kind || '';
   }
 
+  // --- indicador de git: cuantos commits sin subir, y el botón de push ---
+  const gitBar = document.getElementById('gitBar');
+  const gitBarText = document.getElementById('gitBarText');
+  const gitBarPush = document.getElementById('gitBarPush');
+
+  async function refreshGitStatus(){
+    try{
+      const r = await fetch('/api/git/status');
+      const j = await r.json();
+      if (j.ahead == null){
+        gitBar.className = 'gitBar';
+        gitBarText.textContent = 'git: no se puede saber si falta subir (sin rama remota configurada)';
+        gitBarPush.hidden = true;
+        return;
+      }
+      if (j.ahead === 0){
+        gitBar.className = 'gitBar';
+        gitBarText.textContent = j.dirty ? 'hay cambios sin publicar en el disco' : 'todo subido';
+        gitBarPush.hidden = true;
+      } else {
+        gitBar.className = 'gitBar pending';
+        gitBarText.textContent = `${j.ahead} commit${j.ahead===1?'':'s'} sin subir`;
+        gitBarPush.hidden = false;
+      }
+    }catch(e){
+      gitBarText.textContent = 'git: no se pudo comprobar el estado';
+    }
+  }
+
+  gitBarPush.addEventListener('click', async () => {
+    gitBar.classList.add('pushing');
+    gitBarPush.disabled = true;
+    gitBarText.textContent = 'haciendo push…';
+    try{
+      const r = await fetch('/api/git/push', { method:'POST' });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error);
+    }catch(e){
+      gitBarText.textContent = 'error al hacer push: ' + e.message;
+    }finally{
+      gitBarPush.disabled = false;
+      gitBar.classList.remove('pushing');
+      refreshGitStatus();
+    }
+  });
+
   publishBtn.addEventListener('click', async () => {
     if (!state.images.length) return setStatus('Añade al menos una foto.', 'err');
     if (!dateEl.value) return setStatus('Falta la fecha.', 'err');
@@ -425,31 +691,13 @@
       dateEl.value = ''; dateTouchedByUser = false; dateHint.textContent = '';
       textEl.value = ''; textCount.textContent = '0';
       loadEntries();
-      offerPush();
+      refreshGitStatus();
     }catch(e){
       setStatus('Error: ' + e.message, 'err');
     }finally{
       publishBtn.disabled = false;
     }
   });
-
-  function offerPush(){
-    const b = document.createElement('button');
-    b.className = 'plain'; b.textContent = 'Hacer push ahora';
-    b.style.marginTop = '8px';
-    b.addEventListener('click', async () => {
-      b.disabled = true; b.textContent = 'haciendo push…';
-      try{
-        const r = await fetch('/api/git/push', { method:'POST' });
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error);
-        b.textContent = 'push hecho ✓';
-      }catch(e){
-        b.textContent = 'error: ' + e.message;
-      }
-    });
-    statusEl.after(b);
-  }
 
   const MONTHS_ES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
   // Lee año/mes/día directamente del texto del ISO, sin pasar por Date():
@@ -489,8 +737,12 @@
   function escapeHTML(s){ return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
   function showEditForm(el, entry){
-    // cambios de encuadre pendientes de esta sesion de edicion: index -> {orientation, crop}
+    // cambios pendientes de esta sesion de edicion:
+    //  pendingCrops[i]       = {orientation, crop}         — reencuadra la MISMA foto
+    //  pendingReplacements[i]= {filename, dataUrl, orientation, crop} — foto NUEVA del todo
+    // son excluyentes: sustituir una foto invalida cualquier reencuadre pendiente de esa misma posicion.
     const pendingCrops = {};
+    const pendingReplacements = {};
 
     const form = document.createElement('div');
     const imgsHtml = entry.images.map((img, i) => {
@@ -498,9 +750,11 @@
       return `<figure data-i="${i}">
         <img src="${preview}" alt="">
         <button type="button" class="reframe">Reencuadrar</button>
+        <button type="button" class="replace">Cambiar foto</button>
       </figure>`;
     }).join('');
     form.innerHTML = `
+      <div class="field"><label>Fecha</label><input type="date" class="editDate" value="${entry.date.slice(0,10)}"></div>
       <textarea class="editText">${entry.text || ''}</textarea>
       <div class="editImgs">${imgsHtml}</div>
       <div class="hint editHint"></div>
@@ -510,6 +764,18 @@
       </div>`;
 
     const hint = form.querySelector('.editHint');
+    const replaceFileInput = document.createElement('input');
+    replaceFileInput.type = 'file'; replaceFileInput.accept = 'image/*'; replaceFileInput.hidden = true;
+    form.appendChild(replaceFileInput);
+    let replaceTargetIndex = -1;
+
+    function currentFrameFor(i){
+      // desde donde parte el gestor de encuadre para la foto i: lo pendiente
+      // de esta sesion si lo hay, si no lo publicado, si no un marco nuevo.
+      if (pendingCrops[i]) return pendingCrops[i];
+      const saved = entry.images[i];
+      return { orientation: saved.orientation || (saved.width >= saved.height ? 'h' : 'v'), crop: saved.crop || null };
+    }
 
     form.querySelectorAll('.reframe').forEach((btn) => {
       const i = Number(btn.closest('figure').dataset.i);
@@ -529,23 +795,17 @@
             fr.readAsDataURL(blob);
           });
           const { w, h } = await readNaturalSize(dataUrl);
-          // sigue desde el encuadre con el que se publico, si se guardo
-          // (las entradas de antes de que esto existiera no lo tienen: se
-          // parte de un encuadre centrado nuevo, sin zoom).
-          const saved = entry.images[i];
-          const current = pendingCrops[i] || {
-            orientation: saved.orientation || (saved.width >= saved.height ? 'h' : 'v'),
-            crop: saved.crop || null,
-          };
+          const current = currentFrameFor(i);
 
           openCropTool({
             dataUrl, naturalWidth: w, naturalHeight: h,
             orientation: current.orientation, crop: current.crop,
             onApply: (orientation, crop) => {
               pendingCrops[i] = { orientation, crop };
+              delete pendingReplacements[i]; // reencuadrar la de siempre cancela un cambio de foto pendiente
               const fig = form.querySelector(`figure[data-i="${i}"] img`);
-              renderFramedPreview(dataUrl, orientation, crop, w, h).then(prev => { fig.src = prev; });
-              hint.textContent = 'Hay encuadres sin guardar todavía.';
+              renderFramedPreview(dataUrl, orientation, crop, w, h, crop.adjust).then(prev => { fig.src = prev; });
+              hint.textContent = 'Hay cambios sin guardar todavía.';
             }
           });
         } catch (e) {
@@ -556,19 +816,61 @@
       });
     });
 
+    form.querySelectorAll('.replace').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        replaceTargetIndex = Number(btn.closest('figure').dataset.i);
+        replaceFileInput.value = '';
+        replaceFileInput.click();
+      });
+    });
+
+    replaceFileInput.addEventListener('change', async () => {
+      const file = replaceFileInput.files[0];
+      if (!file) return;
+      const i = replaceTargetIndex;
+      const dataUrl = await readAsDataURL(file);
+      const { w, h } = await readNaturalSize(dataUrl);
+      openCropTool({
+        dataUrl, naturalWidth: w, naturalHeight: h,
+        orientation: null, crop: null, // foto nueva del todo: siempre se encuadra desde cero
+        onApply: (orientation, crop) => {
+          pendingReplacements[i] = { filename: file.name, dataUrl, orientation, crop };
+          delete pendingCrops[i]; // un cambio de foto pendiente sustituye cualquier reencuadre de la vieja
+          const fig = form.querySelector(`figure[data-i="${i}"] img`);
+          renderFramedPreview(dataUrl, orientation, crop, w, h, crop.adjust).then(prev => { fig.src = prev; });
+          hint.textContent = 'Hay cambios sin guardar todavía.';
+        }
+      });
+    });
+
     form.querySelector('.cancel').addEventListener('click', () => { form.remove(); });
     form.querySelector('.save').addEventListener('click', async () => {
       const text = form.querySelector('.editText').value;
+      const dateVal = form.querySelector('.editDate').value;
       const crops = Object.entries(pendingCrops).map(([index, c]) => ({
         index: Number(index), orientation: c.orientation, ...c.crop
       }));
-      const r = await fetch('/api/entries/' + encodeURIComponent(entry.id), {
-        method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text, crops })
-      });
-      const j = await r.json();
-      if (!r.ok) return alert('Error: ' + j.error);
-      form.remove();
-      loadEntries();
+      const replacements = Object.entries(pendingReplacements).map(([index, rep]) => ({
+        index: Number(index), filename: rep.filename, dataUrl: rep.dataUrl, orientation: rep.orientation, crop: rep.crop
+      }));
+      const payload = { text, crops, replacements };
+      if (dateVal && dateVal !== entry.date.slice(0,10)) payload.date = dateVal;
+
+      const saveBtn = form.querySelector('.save');
+      saveBtn.disabled = true; saveBtn.textContent = 'guardando…';
+      try{
+        const r = await fetch('/api/entries/' + encodeURIComponent(entry.id), {
+          method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error);
+        form.remove();
+        loadEntries();
+        refreshGitStatus();
+      }catch(e){
+        alert('Error: ' + e.message);
+        saveBtn.disabled = false; saveBtn.textContent = 'Guardar';
+      }
     });
     el.appendChild(form);
   }
@@ -592,11 +894,13 @@
       const j = await r.json();
       if (!r.ok) return alert('Error: ' + j.error);
       loadEntries();
+      refreshGitStatus();
     });
     el.appendChild(box);
   }
 
   loadEntries();
+  refreshGitStatus();
 })();
 </script>
 </body>

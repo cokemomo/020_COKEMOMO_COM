@@ -19,6 +19,36 @@ function tierDims(tier, ratio) {
     : { w: Math.round(tier * ratio), h: tier };
 }
 
+// Ajustes fino opcionales — todos neutros por defecto (0 = sin cambio).
+// Verificado a mano contra sharp antes de usarlos (gris puro 128,128,128):
+//   modulate({brightness:1.3})      -> sube el brillo multiplicando, tal cual
+//   modulate({saturation:2})        -> no toca un gris puro (correcto)
+//   linear(slope, intercept)        -> intercept=(1-slope)*128 mantiene el punto medio fijo
+//   linear([r,g,b],[0,0,0])         -> gana/pierde cada canal por separado (para la temperatura)
+function applyAdjustments(pipeline, adjust) {
+  if (!adjust) return pipeline;
+  const exposure = Number(adjust.exposure) || 0;
+  const contrast = Number(adjust.contrast) || 0;
+  const saturation = Number(adjust.saturation) || 0;
+  const temperature = Number(adjust.temperature) || 0;
+
+  if (exposure || saturation) {
+    pipeline = pipeline.modulate({
+      brightness: Math.max(0.1, 1 + exposure / 100),
+      saturation: Math.max(0, 1 + saturation / 100),
+    });
+  }
+  if (contrast) {
+    const c = Math.max(0.1, 1 + contrast / 100);
+    pipeline = pipeline.linear(c, (1 - c) * 128);
+  }
+  if (temperature) {
+    const t = Math.max(-1, Math.min(1, temperature / 100));
+    pipeline = pipeline.linear([1 + t * 0.25, 1, 1 - t * 0.25], [0, 0, 0]);
+  }
+  return pipeline;
+}
+
 /**
  * Genera las 3 variantes de una foto ya encuadrada por el usuario.
  *
@@ -28,7 +58,8 @@ function tierDims(tier, ratio) {
  * imagen una vez para obtener las dimensiones reales, y se reusa ese
  * resultado ya rotado para las 3 variantes en vez de rehacer el giro 3 veces.
  *
- * @param {{orientation:'h'|'v', cx:number, cy:number, cw:number, ch:number}} crop
+ * @param {{orientation:'h'|'v', cx:number, cy:number, cw:number, ch:number,
+ *   adjust?: {exposure:number, contrast:number, saturation:number, temperature:number}}} crop
  */
 async function generateVariants(originalPath, stagingDir, baseId, crop) {
   if (!crop || !crop.orientation) throw new Error("Falta el encuadre de la foto.");
@@ -43,6 +74,13 @@ async function generateVariants(originalPath, stagingDir, baseId, crop) {
   const width = Math.max(1, Math.min(rw - left, Math.round(crop.cw * rw)));
   const height = Math.max(1, Math.min(rh - top, Math.round(crop.ch * rh)));
 
+  // Recorte y ajustes se hacen UNA vez sobre un buffer intermedio, y las 3
+  // tallas se generan redimensionando ese mismo buffer — así el color sale
+  // idéntico en las tres en vez de recalcularlo tres veces por separado.
+  let adjustedPipeline = sharp(rotated).extract({ left, top, width, height });
+  adjustedPipeline = applyAdjustments(adjustedPipeline, crop.adjust);
+  const { data: adjusted } = await adjustedPipeline.toBuffer({ resolveWithObject: true });
+
   const files = {};
   let full = null;
 
@@ -53,8 +91,7 @@ async function generateVariants(originalPath, stagingDir, baseId, crop) {
     // El recorte ya tiene exactamente la proporción del marco (lo construye
     // así la interfaz), así que "fill" a las medidas fijas del nivel no
     // deforma nada — solo redimensiona.
-    await sharp(rotated)
-      .extract({ left, top, width, height })
+    await sharp(adjusted)
       .resize({ width: w, height: h, fit: "fill" })
       .toColorspace("srgb")
       .jpeg({ quality: QUALITY, mozjpeg: true })

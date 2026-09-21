@@ -145,82 +145,170 @@ async function publishEntry(repoRoot, { date, text, images }) {
 
 /**
  * Edita una entrada existente: el texto (y con él, el alt de todas sus
- * fotos, que se deriva del texto) y, opcionalmente, reencuadra alguna de
- * sus fotos de nuevo. El reencuadre parte siempre del original guardado en
- * su día — si esa entrada se publicó antes de que esto existiera, no hay
- * original y no se puede reencuadrar.
+ * fotos, que se deriva del texto), reencuadrar alguna foto, sustituirla por
+ * otra distinta, y/o cambiar la fecha.
  *
- * `crops`: [{ index, orientation, cx, cy, cw, ch }, ...] — solo hace falta
- * incluir las fotos que cambian de encuadre.
+ * `crops`: [{ index, orientation, cx, cy, cw, ch }, ...] — reencuadra una
+ * foto YA publicada, a partir de su original guardado.
+ * `replacements`: [{ index, filename, dataUrl, orientation, crop }, ...] —
+ * sustituye la foto de esa posición por un archivo nuevo del todo; como al
+ * publicar, hace falta encuadrarla.
+ * `date`: "AAAA-MM-DD" — si es distinta del día ya guardado, la entrada
+ * cambia de identificador (la fecha va codificada en él) y de carpeta si
+ * cambia de año o mes. Para poder recolocar sin perder calidad, TODAS las
+ * fotos de la entrada tienen que tener su original guardado — si alguna no
+ * lo tiene (entradas de antes de que existiera esta función), se rechaza
+ * el cambio de fecha explicando por qué, en vez de mover solo unas fotos sí
+ * y otras no.
  */
-async function editEntry(repoRoot, id, { text, crops }) {
+async function editEntry(repoRoot, id, { text, crops, date, replacements }) {
   const found = findEntry(repoRoot, id);
   if (!found) throw new Error("No existe esa entrada: " + id);
 
   const entryText = typeof text === "string" ? text.trim() : found.entry.text;
   const altText = entryText || DEFAULT_ALT;
-  const [y, mo] = found.entry.date.split("-");
+
+  const [origY, origMo] = found.entry.date.split("-");
+
+  let dateChanged = false;
+  let newId = id;
+  let newDateISO = found.entry.date;
+  if (typeof date === "string" && date.trim()) {
+    const candidate = toISO(date);
+    if (candidate.slice(0, 10) !== found.entry.date.slice(0, 10)) {
+      dateChanged = true;
+      newDateISO = candidate;
+      const [ny, nmo, nd] = newDateISO.slice(0, 10).split("-");
+      newId = `${ny}-${nmo}-${nd}-0000-${crypto.randomBytes(2).toString("hex")}`;
+    }
+  }
+  const [y, mo] = newDateISO.split("-");
   const mediaDir = path.join(repoRoot, "diary", "media", y, mo);
 
   let images = found.entry.images.map((img) => ({ ...img, alt: altText }));
-  const changedMediaFiles = []; // hay que añadirlos al commit, o la web publica se queda con la foto vieja
+  const replacementByIndex = new Map((replacements || []).map((r) => [r.index, r]));
+  const cropByIndex = new Map((crops || []).map((c) => [c.index, c]));
 
-  if (Array.isArray(crops) && crops.length) {
-    const tmpDir = mkTemp("diary-recrop-");
-    try {
-      for (const c of crops) {
-        const i = c.index;
-        if (i == null || i < 0 || i >= images.length) continue;
-
-        const original = findOriginal(repoRoot, id, i);
-        if (!original) {
-          throw new Error(
-            `No hay original guardado para la foto ${i + 1}: esta entrada se publicó antes de que se pudiera reencuadrar, así que no se puede recortar de nuevo sin perder calidad.`
-          );
-        }
-
-        const baseId = images.length === 1 ? id : `${id}-${i + 1}`;
-        const stagingDir = path.join(tmpDir, String(i));
-        fs.mkdirSync(stagingDir, { recursive: true });
-        const cropObj = { cx: c.cx, cy: c.cy, cw: c.cw, ch: c.ch, orientation: c.orientation };
-        const { width, height, files } = await generateVariants(original, stagingDir, baseId, cropObj);
-
-        const srcset = LONG_EDGE_TIERS.slice().reverse().map((tier) => {
-          const fname = tier === 2400 ? `${baseId}.jpg` : `${baseId}-${tier}.jpg`;
-          const dest = path.join(mediaDir, fname);
-          fs.copyFileSync(files[tier], dest); // mismo nombre de siempre: sobrescribe en el sitio, sin huérfanos
-          changedMediaFiles.push(dest);
-          return { w: tier, src: `/diary/media/${y}/${mo}/${fname}` };
-        });
-
-        images[i] = {
-          src: srcset.find((s) => s.w === 2400).src,
-          srcset, width, height, alt: altText,
-          orientation: c.orientation,
-          crop: { cx: c.cx, cy: c.cy, cw: c.cw, ch: c.ch },
-        };
+  // Si cambia la fecha, TODAS las fotos se regeneran desde su original en
+  // la ubicación nueva — más simple y fiable que andar moviendo/renombrando
+  // ficheros ya generados. Por eso hace falta que todas tengan original.
+  if (dateChanged) {
+    for (let i = 0; i < images.length; i++) {
+      if (replacementByIndex.has(i)) continue; // esta trae archivo nuevo, no hace falta el viejo
+      if (!findOriginal(repoRoot, id, i)) {
+        throw new Error(
+          `No se puede cambiar la fecha: la foto ${i + 1} no tiene original guardado (se publicó antes de que existiera esta función), así que no se puede recolocar sin perder calidad.`
+        );
       }
-    } catch (e) {
-      // Un recorte a mitad de una entrada con varias fotos pudo dejar
-      // alguna imagen ya sobrescrita en disco pero sin commitear — se
-      // devuelve esa foto a como estaba en el último commit real.
-      if (changedMediaFiles.length) {
-        await git(repoRoot, ["checkout", "--", ...changedMediaFiles.map((f) => path.relative(repoRoot, f))]).catch(() => {});
-      }
-      throw e;
-    } finally {
-      rmrf(tmpDir);
     }
   }
 
-  const updated = updateEntry(repoRoot, id, { text: entryText, images });
+  const changedMediaFiles = [];
+  const oldMediaFilesToRemove = [];
+  const tmpDir = mkTemp("diary-recrop-");
+
+  try {
+    for (let i = 0; i < images.length; i++) {
+      const replacement = replacementByIndex.get(i);
+      const cropSpec = cropByIndex.get(i);
+      if (!replacement && !cropSpec && !dateChanged) continue; // esta foto no cambia en nada
+
+      const baseId = images.length === 1 ? newId : `${newId}-${i + 1}`;
+      let originalPath, orientation, cropRect;
+
+      if (replacement) {
+        if (!replacement.orientation || !replacement.crop) {
+          throw new Error(`Falta encuadrar la foto nueva de la posición ${i + 1}.`);
+        }
+        originalPath = path.join(tmpDir, `new-${i}${path.extname(replacement.filename || "") || ".jpg"}`);
+        fs.writeFileSync(originalPath, dataUrlToBuffer(replacement.dataUrl));
+        orientation = replacement.orientation;
+        cropRect = replacement.crop;
+      } else {
+        originalPath = findOriginal(repoRoot, id, i);
+        if (!originalPath) {
+          throw new Error(`No hay original guardado para la foto ${i + 1}: no se puede regenerar sin perder calidad.`);
+        }
+        if (cropSpec) {
+          orientation = cropSpec.orientation;
+          cropRect = { cx: cropSpec.cx, cy: cropSpec.cy, cw: cropSpec.cw, ch: cropSpec.ch, adjust: cropSpec.adjust };
+        } else {
+          // solo cambia la fecha: mismo encuadre de siempre, otra ubicación
+          orientation = images[i].orientation;
+          cropRect = images[i].crop;
+        }
+      }
+
+      const stagingDir = path.join(tmpDir, `s${i}`);
+      fs.mkdirSync(stagingDir, { recursive: true });
+      const { width, height, files } = await generateVariants(originalPath, stagingDir, baseId, { ...cropRect, orientation });
+
+      fs.mkdirSync(mediaDir, { recursive: true });
+      const srcset = LONG_EDGE_TIERS.slice().reverse().map((tier) => {
+        const fname = tier === 2400 ? `${baseId}.jpg` : `${baseId}-${tier}.jpg`;
+        const dest = path.join(mediaDir, fname);
+        fs.copyFileSync(files[tier], dest);
+        changedMediaFiles.push(dest);
+        return { w: tier, src: `/diary/media/${y}/${mo}/${fname}` };
+      });
+
+      // El nombre base solo cambia si cambió el id (fecha nueva) — un
+      // simple reencuadre o sustitución con la fecha igual sobrescribe en
+      // el sitio, como siempre, y no deja nada que limpiar.
+      if (dateChanged) {
+        for (const s of images[i].srcset) {
+          oldMediaFilesToRemove.push(path.join(repoRoot, s.src.replace(/^\//, "")));
+        }
+      }
+
+      images[i] = { src: srcset.find((s) => s.w === 2400).src, srcset, width, height, alt: altText, orientation, crop: cropRect };
+
+      // El original se guarda bajo el id que corresponda a partir de ahora
+      // (nuevo si cambió la fecha, el mismo si no) — así una foto
+      // sustituida o una entrada recolocada siguen pudiéndose reencuadrar.
+      saveOriginal(repoRoot, newId, i, originalPath);
+    }
+  } catch (e) {
+    // Un fallo a mitad pudo dejar alguna foto ya escrita, sin commitear.
+    // Si la fecha cambió, esos ficheros son nuevos (ubicación nueva, aún
+    // no están en git): basta con borrarlos. Si la fecha NO cambió, un
+    // reencuadre o sustitución sobrescribe en el sitio de siempre — borrar
+    // dejaría esa foto sin archivo ninguno; hay que devolverla a como
+    // estaba en el último commit real, no borrarla.
+    if (dateChanged) {
+      changedMediaFiles.forEach((f) => fs.rmSync(f, { force: true }));
+    } else if (changedMediaFiles.length) {
+      await git(repoRoot, ["checkout", "--", ...changedMediaFiles.map((f) => path.relative(repoRoot, f))]).catch(() => {});
+    }
+    throw e;
+  } finally {
+    rmrf(tmpDir);
+  }
+
+  oldMediaFilesToRemove.forEach((f) => fs.rmSync(f, { force: true }));
+  if (dateChanged && newId !== id) removeOriginals(repoRoot, id); // el id viejo ya no hace falta
+
+  let year;
+  if (dateChanged) {
+    deleteEntry(repoRoot, id); // solo el JSON — los ficheros ya se han movido arriba
+    year = addEntry(repoRoot, { id: newId, date: newDateISO, text: entryText, images });
+  } else {
+    updateEntry(repoRoot, id, { text: entryText, images });
+    year = y;
+  }
   regenerateStaticFragment(repoRoot);
 
-  const yearFilePath = path.relative(repoRoot, path.join(repoRoot, "diary", "data", `${y}.json`));
+  const yearFilePath = path.relative(repoRoot, path.join(repoRoot, "diary", "data", `${year}.json`));
   const indexPath = path.relative(repoRoot, path.join(repoRoot, "diary", "index.html"));
   const relMedia = changedMediaFiles.map((f) => path.relative(repoRoot, f));
-  const hash = await commitFiles(repoRoot, [yearFilePath, indexPath, ...relMedia], `diary: editar ${id}`);
-  return { id, commit: hash };
+  const relRemoved = oldMediaFilesToRemove.map((f) => path.relative(repoRoot, f));
+  const files = [yearFilePath, indexPath, ...relMedia, ...relRemoved];
+  if (dateChanged && origY !== y) {
+    files.push(path.relative(repoRoot, path.join(repoRoot, "diary", "data", `${origY}.json`)));
+  }
+
+  const hash = await commitFiles(repoRoot, files, `diary: editar ${dateChanged ? `${id} -> ${newId}` : id}`);
+  return { id: newId, commit: hash };
 }
 
 /**

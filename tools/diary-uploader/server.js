@@ -6,7 +6,7 @@ const path = require("path");
 const { proposeDate } = require("./lib/exif");
 const { listRecent, findEntry } = require("./lib/diaryData");
 const { publishEntry, editEntry, removeEntry } = require("./lib/publish");
-const { push } = require("./lib/git");
+const { push, status: gitStatus } = require("./lib/git");
 const { findOriginal } = require("./lib/originals");
 
 // Resuelto respecto al propio script, nunca una ruta absoluta fija — esto
@@ -169,6 +169,10 @@ async function handle(req, res) {
     if (req.method === "POST" && pathname === "/api/git/push") {
       const out = await push(REPO_ROOT);
       return sendJSON(res, 200, { ok: true, output: out });
+    }
+
+    if (req.method === "GET" && pathname === "/api/git/status") {
+      return sendJSON(res, 200, await gitStatus(REPO_ROOT));
     }
 
     sendJSON(res, 404, { error: "ruta no encontrada" });

@@ -25,4 +25,18 @@ async function push(repoRoot) {
   return git(repoRoot, ["push", "origin", "main"]);
 }
 
-module.exports = { git, commitFiles, push };
+// Para el indicador de estado de la interfaz: cuantos commits locales no
+// estan subidos, y si hay cambios sin comprometer (no deberia pasar nunca
+// en uso normal, pero avisa si el propio subidor se queda a medias).
+async function status(repoRoot) {
+  let ahead = null;
+  try {
+    ahead = Number(await git(repoRoot, ["rev-list", "--count", "@{u}..HEAD"]));
+  } catch (e) {
+    ahead = null; // sin upstream configurado: no se puede saber
+  }
+  const porcelain = await git(repoRoot, ["status", "--porcelain"]);
+  return { ahead, dirty: porcelain.length > 0 };
+}
+
+module.exports = { git, commitFiles, push, status };
