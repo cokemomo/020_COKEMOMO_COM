@@ -39,6 +39,46 @@
           }
         }
       ]
+    },
+    {
+      "id": "2026-09-04-0000-ab5f",
+      "date": "2026-09-04T00:00:00+01:00",
+      "text": "Rodiles.",
+      "images": [
+        {
+          "src": "/diary/media/2026/09/2026-09-04-0000-ab5f.jpg",
+          "srcset": [
+            {
+              "w": 800,
+              "src": "/diary/media/2026/09/2026-09-04-0000-ab5f-800.jpg"
+            },
+            {
+              "w": 1600,
+              "src": "/diary/media/2026/09/2026-09-04-0000-ab5f-1600.jpg"
+            },
+            {
+              "w": 2400,
+              "src": "/diary/media/2026/09/2026-09-04-0000-ab5f.jpg"
+            }
+          ],
+          "width": 2400,
+          "height": 1600,
+          "alt": "Rodiles.",
+          "orientation": "h",
+          "crop": {
+            "cx": 0.07988336894586892,
+            "cy": 0.07045558608058596,
+            "cw": 0.8547008547008548,
+            "ch": 0.8547008547008548,
+            "adjust": {
+              "exposure": 5,
+              "contrast": 0,
+              "saturation": 0,
+              "temperature": 0
+            }
+          }
+        }
+      ]
     }
   ]
 }
