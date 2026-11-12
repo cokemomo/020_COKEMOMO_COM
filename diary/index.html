@@ -814,9 +814,13 @@ document.querySelectorAll('.d-video').forEach((box) => {
   const toggle = () => { v.paused ? v.play() : v.pause(); };
   box.querySelector('.v-big').addEventListener('click', toggle);
   box.querySelector('.v-play').addEventListener('click', toggle);
-  // Con los controles escondidos, el primer toque solo los saca (no pausa).
+  // En el móvil, con los controles escondidos, el primer toque solo los saca
+  // (no pausa). Con ratón, el clic pausa siempre: en pantalla completa el
+  // ratón está quieto y los controles escondidos, y si no, parecía bloqueado.
   let wasIdle = false;
-  v.addEventListener('pointerdown', () => { wasIdle = box.classList.contains('idle'); });
+  v.addEventListener('pointerdown', (e) => {
+    wasIdle = e.pointerType === 'touch' && box.classList.contains('idle');
+  });
   v.addEventListener('click', () => { if (wasIdle) { wasIdle = false; wake(); } else toggle(); });
 
   v.addEventListener('play', () => { box.classList.add('playing', 'started'); wake(); });
@@ -874,7 +878,25 @@ document.querySelectorAll('.d-video').forEach((box) => {
     if (xy !== lastXY) { lastXY = xy; wake(); }
   });
   box.addEventListener('touchstart', wake, { passive: true });
-  box.addEventListener('keydown', wake);
+
+  // Teclado, en pantalla completa o con el foco en el reproductor:
+  // espacio/K pausa, M silencia, F pantalla completa, ←/→ salta 5 s.
+  // (Safari no da el foco a un botón al pulsarlo, así que antes el espacio
+  // no hacía nada en pantalla completa.)
+  const active = () => fsEl() === box || box.contains(document.activeElement);
+  document.addEventListener('keydown', (e) => {
+    if (!active() || e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k === ' ' || k === 'k') toggle();
+    else if (k === 'm') box.querySelector('.v-mute').click();
+    else if (k === 'f') box.querySelector('.v-fs').click();
+    else if (k === 'arrowleft' || k === 'arrowright') {
+      if (v.duration) v.currentTime = Math.max(0, Math.min(v.duration, v.currentTime + (k === 'arrowleft' ? -5 : 5)));
+    } else return;
+    e.preventDefault(); // que el espacio no pulse además el botón con foco
+    wake();
+  }, true);
+  document.addEventListener('keyup', (e) => { if (e.key === ' ' && active()) e.preventDefault(); }, true);
 });
 </script>
 
