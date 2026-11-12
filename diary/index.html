@@ -145,8 +145,87 @@
     .d-sep{ opacity: var(--footer-opacity); }
     .d-text{ color: var(--text-main); opacity:.85; }
 
-    .d-intro{ text-align:center; font-size:var(--footer-font-size); opacity:var(--footer-opacity); padding: 0 0 32px; border-bottom: var(--border); margin-bottom: 32px; }
     .d-sentinel{ height:1px; }
+
+    /* ===== VÍDEO — reproductor propio, cristal oscuro =====
+       Sin controles nativos: solo play/pausa, volumen y pantalla completa,
+       más una línea fina de progreso que se puede tocar para saltar. */
+    .d-video{ position:relative; width:100%; aspect-ratio:16/9; background:#000; overflow:hidden; }
+    .d-video video{ display:block; width:100%; height:100%; object-fit:contain; background:#000; }
+    .d-video:fullscreen{ aspect-ratio:auto; }
+    .d-video:-webkit-full-screen{ aspect-ratio:auto; width:100%; height:100%; }
+
+    .glass{
+      background: rgba(22,22,22,.32);
+      backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%);
+      border: 1px solid rgba(255,255,255,.14);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.14), inset 0 -1px 0 rgba(0,0,0,.25), 0 8px 24px rgba(0,0,0,.35);
+    }
+
+    .v-big{
+      position:absolute; left:50%; top:50%; width:72px; height:72px; margin:-36px 0 0 -36px;
+      border-radius:50%; display:flex; align-items:center; justify-content:center;
+      color:#fff; cursor:pointer; padding:0; transition: opacity .35s ease, transform .35s ease;
+    }
+    .v-big:hover{ transform: scale(1.05); }
+    .v-big svg{ width:26px; height:26px; margin-left:4px; }
+    .d-video.playing .v-big, .d-video.started .v-big{ opacity:0; pointer-events:none; transform:scale(.9); }
+
+    .v-bar{
+      position:absolute; left:50%; bottom:16px; transform:translateX(-50%);
+      display:flex; align-items:center; gap:2px; padding:5px; border-radius:999px;
+      transition: opacity .4s ease, transform .4s ease;
+    }
+    .d-video:not(.started) .v-bar{ opacity:0; pointer-events:none; transform:translate(-50%, 8px); }
+    .d-video.idle .v-bar{ opacity:0; pointer-events:none; transform:translate(-50%, 8px); }
+    .d-video.idle{ cursor:none; }
+
+    .v-btn{
+      width:38px; height:38px; border-radius:50%; border:none; background:transparent; color:#fff;
+      display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0;
+      opacity:.85; transition: background .2s ease, opacity .2s ease;
+    }
+    .v-btn:hover{ background:rgba(255,255,255,.12); opacity:1; }
+    .v-btn:focus-visible, .v-big:focus-visible{ outline:1px solid rgba(255,255,255,.5); outline-offset:2px; }
+    .v-btn svg{ width:18px; height:18px; }
+    .v-btn .i-pause, .v-btn .i-muted, .v-btn .i-exit{ display:none; }
+    .d-video.playing .v-btn .i-play{ display:none; }
+    .d-video.playing .v-btn .i-pause{ display:block; }
+    .d-video.muted .v-btn .i-vol{ display:none; }
+    .d-video.muted .v-btn .i-muted{ display:block; }
+    .d-video.fs .v-btn .i-full{ display:none; }
+    .d-video.fs .v-btn .i-exit{ display:block; }
+
+    .v-vol{ display:flex; align-items:center; }
+    .v-range{
+      -webkit-appearance:none; appearance:none; width:0; opacity:0; height:3px; margin:0;
+      background: linear-gradient(to right, rgba(255,255,255,.9) var(--v,100%), rgba(255,255,255,.22) var(--v,100%));
+      border-radius:2px; cursor:pointer; transition: width .25s ease, opacity .25s ease, margin .25s ease;
+    }
+    .v-vol:hover .v-range, .v-range:focus-visible{ width:72px; opacity:1; margin:0 10px 0 2px; }
+    .v-range::-webkit-slider-thumb{ -webkit-appearance:none; width:11px; height:11px; border-radius:50%; background:#fff; border:none; }
+    .v-range::-moz-range-thumb{ width:11px; height:11px; border-radius:50%; background:#fff; border:none; }
+    @media (hover:none){ .v-range{ display:none; } }
+
+    .v-progress{
+      position:absolute; left:0; right:0; bottom:0; height:14px; cursor:pointer;
+      transition: opacity .4s ease;
+    }
+    .v-progress::before, .v-progress i{
+      content:""; position:absolute; left:0; bottom:0; height:2px; display:block;
+    }
+    .v-progress::before{ right:0; background:rgba(255,255,255,.14); }
+    .v-progress i{
+      width:0; background: linear-gradient(90deg, #a8843c, #e9cd85);
+      box-shadow: 0 0 6px rgba(233,205,133,.55), 0 0 2px rgba(233,205,133,.9);
+    }
+    .d-video:not(.started) .v-progress, .d-video.idle .v-progress{ opacity:0; pointer-events:none; }
+
+    @media (max-width: 600px){
+      .v-big{ width:60px; height:60px; margin:-30px 0 0 -30px; }
+      .v-bar{ bottom:12px; }
+      .v-btn{ width:36px; height:36px; }
+    }
 
     /* --- índice compacto en móvil --- */
     .diary-idx-mobile{ display:none; }
@@ -229,11 +308,11 @@
       <div class="menu-list">
         <a href="/">HOME</a>
         <a href="/#psilicon-flesh">PSILICON FLESH</a>
-        <a href="/#held-in-time">HELD IN TIME</a>
+        <!-- OCULTO: <a href="/#held-in-time">HELD IN TIME</a> -->
         <a href="/#path">PATH</a>
-        <a href="/#strings">STRINGS</a>
-        <a href="/#portraiture">PORTRAITURE</a>
-        <a href="/#core">CORE</a>
+        <!-- OCULTO: <a href="/#strings">STRINGS</a> -->
+        <!-- OCULTO: <a href="/#portraiture">PORTRAITURE</a> -->
+        <!-- OCULTO: <a href="/#core">CORE</a> -->
       </div>
     </div>
   </div>
@@ -247,7 +326,38 @@
 
     <div class="diary-flow" id="diaryFlow">
 
-      <p class="d-intro">Shot on a Leica M6, 50mm Summilux.</p>
+      <!-- Vídeo puesto a mano, FUERA de las marcas del subidor (que regenera
+           lo de dentro). Reproductor propio: ver .d-video en el CSS y el
+           bloque «Reproductor de vídeo» al final del script. -->
+      <article class="d-entry">
+        <div class="d-video" id="vid1">
+          <video src="/diary/media/video/2026-11-11-madrid.mp4" poster="/diary/media/video/2026-11-11-madrid.jpg"
+                 preload="metadata" playsinline webkit-playsinline disablepictureinpicture
+                 controlslist="nodownload noplaybackrate" oncontextmenu="return false;"></video>
+          <button class="v-big glass" type="button" aria-label="Reproducir">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>
+          </button>
+          <div class="v-progress" role="slider" aria-label="Progreso" tabindex="-1"><i></i></div>
+          <div class="v-bar glass">
+            <button class="v-btn v-play" type="button" aria-label="Reproducir / pausa">
+              <svg class="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>
+              <svg class="i-pause" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4.5" width="4" height="15" rx="1"/><rect x="14" y="4.5" width="4" height="15" rx="1"/></svg>
+            </button>
+            <div class="v-vol">
+              <button class="v-btn v-mute" type="button" aria-label="Silenciar">
+                <svg class="i-vol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>
+                <svg class="i-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>
+              </button>
+              <input class="v-range" type="range" min="0" max="1" step="0.01" value="1" aria-label="Volumen">
+            </div>
+            <button class="v-btn v-fs" type="button" aria-label="Pantalla completa">
+              <svg class="i-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+              <svg class="i-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
+            </button>
+          </div>
+        </div>
+        <p class="d-meta"><span class="d-date">11/11/2026</span><span class="d-sep"> | </span><span class="d-text">Madrid, 11N.</span></p>
+      </article>
 
       <!-- Primer tramo pre-renderizado: visible sin JavaScript y sin esperar
            al fetch. El JS reconoce estos [data-entry-id] al cargar el JSON
@@ -692,6 +802,80 @@
     }
   })();
 })();
+
+/* ===== Reproductor de vídeo — cristal oscuro, botones justos ===== */
+document.querySelectorAll('.d-video').forEach((box) => {
+  const v = box.querySelector('video');
+  const range = box.querySelector('.v-range');
+  const bar = box.querySelector('.v-progress');
+  const fill = bar.querySelector('i');
+  let idleTimer = null;
+
+  const toggle = () => { v.paused ? v.play() : v.pause(); };
+  box.querySelector('.v-big').addEventListener('click', toggle);
+  box.querySelector('.v-play').addEventListener('click', toggle);
+  // Con los controles escondidos, el primer toque solo los saca (no pausa).
+  let wasIdle = false;
+  v.addEventListener('pointerdown', () => { wasIdle = box.classList.contains('idle'); });
+  v.addEventListener('click', () => { if (wasIdle) { wasIdle = false; wake(); } else toggle(); });
+
+  v.addEventListener('play', () => { box.classList.add('playing', 'started'); wake(); });
+  v.addEventListener('pause', () => { box.classList.remove('playing', 'idle'); clearTimeout(idleTimer); });
+  v.addEventListener('ended', () => { v.currentTime = 0; });
+
+  // Volumen: botón silenciar + deslizador (el deslizador solo con ratón:
+  // en iPhone el volumen lo mandan los botones del aparato).
+  const syncVol = () => {
+    const muted = v.muted || v.volume === 0;
+    box.classList.toggle('muted', muted);
+    range.value = muted ? 0 : v.volume;
+    range.style.setProperty('--v', (range.value * 100) + '%');
+  };
+  box.querySelector('.v-mute').addEventListener('click', () => {
+    if (v.muted || v.volume === 0) { v.muted = false; if (v.volume === 0) v.volume = 1; } else v.muted = true;
+  });
+  range.addEventListener('input', () => { v.volume = Number(range.value); v.muted = v.volume === 0; });
+  v.addEventListener('volumechange', syncVol);
+  syncVol();
+
+  // Pantalla completa: el iPhone no deja ponerla a un div, solo al <video>.
+  const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+  box.querySelector('.v-fs').addEventListener('click', () => {
+    if (fsEl()) return (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    if (box.requestFullscreen) box.requestFullscreen();
+    else if (box.webkitRequestFullscreen) box.webkitRequestFullscreen();
+    else if (v.webkitEnterFullscreen) v.webkitEnterFullscreen();
+  });
+  const syncFs = () => box.classList.toggle('fs', fsEl() === box);
+  document.addEventListener('fullscreenchange', syncFs);
+  document.addEventListener('webkitfullscreenchange', syncFs);
+
+  // Progreso: línea fina abajo; se toca para saltar.
+  v.addEventListener('timeupdate', () => {
+    fill.style.width = v.duration ? (v.currentTime / v.duration * 100) + '%' : '0';
+  });
+  bar.addEventListener('click', (e) => {
+    const r = bar.getBoundingClientRect();
+    if (v.duration) v.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * v.duration;
+    wake();
+  });
+
+  // Mientras suena, los controles se esconden a los 2,5 s sin mover nada.
+  function wake(){
+    box.classList.remove('idle');
+    clearTimeout(idleTimer);
+    if (!v.paused) idleTimer = setTimeout(() => box.classList.add('idle'), 2500);
+  }
+  // Chrome manda mousemove sin que el ratón se mueva (al repintar el vídeo):
+  // solo cuenta si cambia la posición.
+  let lastXY = '';
+  box.addEventListener('mousemove', (e) => {
+    const xy = e.clientX + ',' + e.clientY;
+    if (xy !== lastXY) { lastXY = xy; wake(); }
+  });
+  box.addEventListener('touchstart', wake, { passive: true });
+  box.addEventListener('keydown', wake);
+});
 </script>
 
 </body>
